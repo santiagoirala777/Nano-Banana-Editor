@@ -1,0 +1,5 @@
+{
+  "name": "AI Virtual Model Studio",
+  "description": "An advanced AI-powered application for generating and editing images of a virtual social media model. Features include prompt-based generation, intelligent inpainting, automatic enhancement, background management, and social media optimization, all powered by Gemini.",
+  "requestFramePermissions": []
+}
