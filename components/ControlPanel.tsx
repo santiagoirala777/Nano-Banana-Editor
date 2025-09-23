@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Tool, GeneratedImage, ReferenceImages, ReferenceSection, OutpaintDirection, OutpaintAspectRatio, GenerationType } from '../types';
 import { TOOL_NAMES, REFERENCE_SECTIONS, OUTPAINT_ASPECT_RATIO_OPTIONS, GALLERY_FILTERS } from '../constants';
@@ -15,9 +14,9 @@ interface ControlPanelProps {
   onReferenceImageChange: (section: ReferenceSection, file: File | null) => void;
   isLoading: boolean;
   activeImage: GeneratedImage | null;
-  onGenerate: (prompt: string, seed?: number) => void;
-  onEdit: (params: { inpaintPrompt: string, references?: ReferenceImages }) => void;
-  onEnhance: () => void;
+  onGenerate: (prompt: string, negativePrompt: string, seed?: number) => void;
+  onEdit: (params: { inpaintPrompt: string, references?: ReferenceImages, isGlobal: boolean }) => void;
+  onEnhance: (type: 'x2' | 'x4' | 'general') => void;
   onReplaceBg: (prompt?: string, image?: File | null) => void;
   onOutpaint: (prompt: string, directions: OutpaintDirection[], aspectRatio: OutpaintAspectRatio, width?: number, height?: number) => void;
   brushSize: number;
@@ -27,6 +26,7 @@ interface ControlPanelProps {
   onClearMask: () => void;
   canMaskUndo: boolean;
   canMaskRedo: boolean;
+  isMaskDrawn: boolean;
 
   seed: string;
   setSeed: (seed: string) => void;
@@ -66,20 +66,19 @@ const ActionHistory: React.FC<Pick<ControlPanelProps, 'onUndo' | 'onRedo' | 'can
 const GeneratorPanel: React.FC<Pick<ControlPanelProps, 'referenceImages' | 'onReferenceImageChange' | 'isLoading' | 'onGenerate' | 'seed' | 'setSeed' | 'isSeedLocked' | 'setIsSeedLocked'>> = 
 ({ referenceImages, onReferenceImageChange, isLoading, onGenerate, seed, setSeed, isSeedLocked, setIsSeedLocked }) => {
     const [prompt, setPrompt] = useState('');
+    const [negativePrompt, setNegativePrompt] = useState('');
     const hasAnyImage = Object.values(referenceImages).some(img => !!img);
 
     const handleGenerateClick = () => {
         const numericSeed = seed ? parseInt(seed, 10) : undefined;
-        onGenerate(prompt, numericSeed);
-        if (!isSeedLocked) {
-            setSeed('');
-        }
+        onGenerate(prompt, negativePrompt, numericSeed);
     }
 
     return (
         <div className="flex flex-col h-full">
             <div className="flex-grow overflow-y-auto space-y-4 pr-2 custom-scrollbar">
                 <TextArea label="Main Prompt" value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={3} placeholder="e.g., A model on a beach at sunset, hyperrealistic..." />
+                <TextArea label="Negative Prompt" value={negativePrompt} onChange={(e) => setNegativePrompt(e.target.value)} rows={2} placeholder="e.g., extra limbs, poor quality, text" />
                 <SeedInput seed={seed} setSeed={setSeed} isLocked={isSeedLocked} setIsLocked={setIsSeedLocked} />
                 <p className="text-xs text-slate-500 -mt-2">Combine a text prompt with visual references for precise control.</p>
                 {REFERENCE_SECTIONS.map(({ id, label, description }) => (
@@ -95,8 +94,8 @@ const GeneratorPanel: React.FC<Pick<ControlPanelProps, 'referenceImages' | 'onRe
     );
 }
 
-const EditorPanel: React.FC<Pick<ControlPanelProps, 'onEdit' | 'isLoading' | 'brushSize' | 'setBrushSize' | 'onMaskUndo' | 'onMaskRedo' | 'canMaskUndo' | 'canMaskRedo' | 'onClearMask' | 'onUndo' | 'onRedo' | 'canUndo' | 'canRedo'>> = (props) => {
-  const { onEdit, isLoading, brushSize, setBrushSize, onMaskUndo, onMaskRedo, canMaskUndo, canMaskRedo, onClearMask } = props;
+const EditorPanel: React.FC<Pick<ControlPanelProps, 'onEdit' | 'isLoading' | 'brushSize' | 'setBrushSize' | 'onMaskUndo' | 'onMaskRedo' | 'canMaskUndo' | 'canMaskRedo' | 'onClearMask' | 'isMaskDrawn' | 'onUndo' | 'onRedo' | 'canUndo' | 'canRedo'>> = (props) => {
+  const { onEdit, isLoading, brushSize, setBrushSize, onMaskUndo, onMaskRedo, canMaskUndo, canMaskRedo, onClearMask, isMaskDrawn } = props;
   const [inpaintPrompt, setInpaintPrompt] = useState('');
   const [editReferenceImages, setEditReferenceImages] = useState<ReferenceImages>({});
   
@@ -139,27 +138,30 @@ const EditorPanel: React.FC<Pick<ControlPanelProps, 'onEdit' | 'isLoading' | 'br
             </div>
         </div>
         <div className="flex-grow pt-4 space-y-4 overflow-y-auto custom-scrollbar pr-2">
-            <TextArea label="Inpainting Prompt" value={inpaintPrompt} onChange={(e) => setInpaintPrompt(e.target.value)} rows={4} placeholder="e.g., change hair to blonde, add sunglasses" />
-            <p className="text-xs text-slate-500 -mt-2">Optional: Add reference images to guide the inpainting.</p>
+            <TextArea label="Edit Prompt" value={inpaintPrompt} onChange={(e) => setInpaintPrompt(e.target.value)} rows={4} placeholder="e.g., change hair to blonde, add sunglasses, cinematic lighting" />
+            <p className="text-xs text-slate-500 -mt-2">Optional: Add reference images to guide the edit.</p>
             {editReferenceSections.map(({ id, label, description }) => (
               <ImageUploader key={id} label={label} description={description} imageSrc={editReferenceImages[id]} onImageUpload={(file) => handleReferenceChange(id, file)} onImageRemove={() => handleReferenceChange(id, null)} />
             ))}
         </div>
-        <div className="pt-4 mt-auto border-t border-slate-700">
-            <Button onClick={() => onEdit({ inpaintPrompt, references: editReferenceImages })} isLoading={isLoading} disabled={!inpaintPrompt} className="w-full">Apply Inpaint</Button>
+        <div className="pt-4 mt-auto border-t border-slate-700 space-y-2">
+            <Button onClick={() => onEdit({ inpaintPrompt, references: editReferenceImages, isGlobal: false })} isLoading={isLoading} disabled={!inpaintPrompt || !isMaskDrawn} className="w-full">Apply to Masked Area</Button>
+            <Button onClick={() => onEdit({ inpaintPrompt, references: editReferenceImages, isGlobal: true })} isLoading={isLoading} disabled={!inpaintPrompt} variant="secondary" className="w-full">Apply as Global Edit</Button>
         </div>
     </div>
   );
 };
 
 const EnhancerPanel: React.FC<Pick<ControlPanelProps, 'onEnhance' | 'isLoading' | 'onUndo' | 'onRedo' | 'canUndo' | 'canRedo'>> = (props) => (
-  <>
+  <div className="flex flex-col h-full">
     <ActionHistory {...props} />
-    <p className="text-sm text-slate-400 mb-4">Apply a professional-grade enhancement, including upscaling to 4K, skin retouching, and cinematic color grading.</p>
-    <Button onClick={props.onEnhance} isLoading={props.isLoading} className="w-full">
-      ✨ Auto Enhance & Upscale
-    </Button>
-  </>
+    <div className="flex-grow space-y-4">
+        <p className="text-sm text-slate-400 mb-4">Apply professional-grade enhancements, including upscaling, skin retouching, and cinematic color grading.</p>
+        <Button onClick={() => props.onEnhance('general')} isLoading={props.isLoading} className="w-full">
+          ✨ General Enhancement
+        </Button>
+    </div>
+  </div>
 );
 
 const BackgroundPanel: React.FC<Pick<ControlPanelProps, 'onReplaceBg' | 'isLoading' | 'onUndo' | 'onRedo' | 'canUndo' | 'canRedo'>> = (props) => {
@@ -219,7 +221,7 @@ const OutpaintPanel: React.FC<Pick<ControlPanelProps, 'onOutpaint' | 'isLoading'
         <div className="space-y-4">
             <ActionHistory {...props} />
             <p className="text-sm text-slate-400">Expand the canvas of your image. Describe what you want to see in the new areas.</p>
-            <TextArea label="Outpainting Prompt" value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={4} placeholder="e.g., a sprawling mountain range, a busy city square..." />
+            <TextArea label="Outpainting Prompt (Optional)" value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={4} placeholder="e.g., a sprawling mountain range, a busy city square..." />
             <Select label="Target Aspect Ratio" options={OUTPAINT_ASPECT_RATIO_OPTIONS} value={aspectRatio} onChange={e => setAspectRatio(e.target.value as OutpaintAspectRatio)} />
             
             {aspectRatio === OutpaintAspectRatio.CUSTOM && (
@@ -245,7 +247,7 @@ const OutpaintPanel: React.FC<Pick<ControlPanelProps, 'onOutpaint' | 'isLoading'
                     <div />
                 </div>
             </div>
-            <Button onClick={handleExpand} isLoading={isLoading} disabled={!prompt || directions.length === 0} className="w-full">
+            <Button onClick={handleExpand} isLoading={isLoading} disabled={directions.length === 0} className="w-full">
                 Expand Image
             </Button>
         </div>

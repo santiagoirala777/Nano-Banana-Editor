@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { GeneratedImage, GenerationType } from '../types';
 
@@ -14,10 +13,10 @@ export const Gallery: React.FC<GalleryProps> = ({ images, activeImageId, onImage
     .slice(0, 5);
 
   return (
-    <footer className="h-32 bg-gray-800 border-t border-gray-700 p-2">
+    <footer className="h-32 bg-slate-800 border-t border-slate-700 p-2">
       <div className="h-full w-full overflow-x-auto overflow-y-hidden custom-scrollbar flex items-center space-x-2">
         {recentGeneratedImages.length === 0 && (
-            <div className="flex items-center justify-center w-full h-full text-gray-500">
+            <div className="flex items-center justify-center w-full h-full text-slate-500">
                 <p>Your 5 most recent generations will appear here.</p>
             </div>
         )}
@@ -26,7 +25,7 @@ export const Gallery: React.FC<GalleryProps> = ({ images, activeImageId, onImage
             key={image.id}
             onClick={() => onImageSelect(image)}
             className={`flex-shrink-0 w-24 h-24 rounded-md overflow-hidden cursor-pointer transition-all duration-200 transform hover:scale-105 ${
-              activeImageId === image.id ? 'ring-2 ring-indigo-500 ring-offset-2 ring-offset-gray-800' : 'ring-1 ring-gray-600'
+              activeImageId === image.id ? 'ring-2 ring-banana-500 ring-offset-2 ring-offset-slate-800' : 'ring-1 ring-slate-600'
             }`}
           >
             <img src={image.url} alt={image.prompt} className="w-full h-full object-cover" />

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Tool, GeneratedImage, ReferenceImages, ReferenceSection, OutpaintDirection, OutpaintAspectRatio, GenerationType } from './types';
 import Sidebar from './components/Sidebar';
@@ -33,6 +32,7 @@ const App: React.FC = () => {
   const [clearMaskTrigger, setClearMaskTrigger] = useState(0);
   const [canMaskUndo, setCanMaskUndo] = useState(false);
   const [canMaskRedo, setCanMaskRedo] = useState(false);
+  const [isMaskDrawn, setIsMaskDrawn] = useState(false);
   
   // Gallery/Export states
   const [selectedImageIds, setSelectedImageIds] = useState<string[]>([]);
@@ -55,6 +55,7 @@ const App: React.FC = () => {
   }, [isLoading]);
   
   const handleSetActiveImage = useCallback((image: GeneratedImage) => {
+    // This function adds a *new* state to the history
     const newHistory = imageHistory.slice(0, historyPointer + 1);
     const updatedHistory = [...newHistory, image];
     setImageHistory(updatedHistory);
@@ -62,7 +63,20 @@ const App: React.FC = () => {
     setActiveImage(image);
   }, [imageHistory, historyPointer]);
 
-  const addNewImage = (url: string, type: GenerationType, prompt?: string, generationSeed?: number, refs?: ReferenceImages) => {
+  const handleSelectFromGallery = (image: GeneratedImage) => {
+    // This function finds an *existing* state in history and navigates to it
+    const indexInHistory = imageHistory.findIndex(histImg => histImg.id === image.id);
+    if (indexInHistory !== -1) {
+        setHistoryPointer(indexInHistory);
+        setActiveImage(imageHistory[indexInHistory]);
+    } else {
+        // Fallback: if not in history (e.g., loaded from session), treat as new
+        handleSetActiveImage(image);
+    }
+  };
+
+
+  const addNewImage = useCallback((url: string, type: GenerationType, prompt?: string, generationSeed?: number, refs?: ReferenceImages) => {
     const newImage: GeneratedImage = { 
         url, 
         type, 
@@ -74,7 +88,7 @@ const App: React.FC = () => {
     };
     setImages(prev => [newImage, ...prev]);
     handleSetActiveImage(newImage);
-  }
+  }, [handleSetActiveImage])
 
   const handleImageUpload = (section: ReferenceSection, file: File | null) => {
     if (!file) {
@@ -107,19 +121,22 @@ const App: React.FC = () => {
     reader.readAsDataURL(file);
   };
 
-  const handleApiCall = async (apiFunc: () => Promise<string>, type: GenerationType, promptText?: string, generationSeed?: number, refs?: ReferenceImages) => {
+  const handleApiCall = useCallback(async (apiFunc: () => Promise<string>, type: GenerationType, promptText?: string, generationSeed?: number, refs?: ReferenceImages) => {
     setIsLoading(true);
     setLoadingMessage(LOADING_MESSAGES[0]);
     try {
         const resultUrl = await apiFunc();
         addNewImage(resultUrl, type, promptText, generationSeed, refs);
+        if (type === GenerationType.EDITED) {
+          setClearMaskTrigger(c => c + 1); // Clear mask after successful edit
+        }
     } catch (error) {
         console.error("API call failed:", error);
         alert(`An error occurred: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
         setIsLoading(false);
     }
-  };
+  }, [addNewImage]);
   
   const handleUndo = () => {
     if (historyPointer > 0) {
@@ -137,34 +154,54 @@ const App: React.FC = () => {
     }
   };
 
-  const handleGenerate = useCallback((prompt: string, numericSeed?: number) => {
-    handleApiCall(
-        () => geminiService.generateImageFromReferences(referenceImages, prompt, numericSeed),
-        GenerationType.GENERATED,
-        prompt || "Generated from image references",
-        numericSeed,
-        referenceImages
-    );
-  }, [referenceImages]);
+  const handleGenerate = useCallback(async (prompt: string, negativePrompt: string, numericSeed?: number) => {
+    const seedToUse = numericSeed ?? Math.floor(Math.random() * 1000000000);
 
-  const handleEdit = useCallback(async (params: { inpaintPrompt: string, references?: ReferenceImages }) => {
+    setIsLoading(true);
+    setLoadingMessage(LOADING_MESSAGES[0]);
+
+    try {
+        const resultUrl = await geminiService.generateImageFromReferences(referenceImages, prompt, negativePrompt, seedToUse);
+        
+        let fullPrompt = prompt || "Generated from image references";
+        if (negativePrompt) {
+            fullPrompt += ` | Negative: ${negativePrompt}`;
+        }
+        
+        addNewImage(resultUrl, GenerationType.GENERATED, fullPrompt, seedToUse, referenceImages);
+        setSeed(seedToUse.toString());
+
+    } catch (error) {
+        console.error("API call failed:", error);
+        alert(`An error occurred: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+        setIsLoading(false);
+    }
+  }, [referenceImages, addNewImage]);
+
+  const handleEdit = useCallback(async (params: { inpaintPrompt: string, references?: ReferenceImages, isGlobal: boolean }) => {
     if (!activeImage) return;
-    if (!maskImage) {
+    if (!params.isGlobal && !maskImage) {
         alert("Please draw a mask on the image to specify the area to edit.");
         return;
     }
     const promptText = `Edited: ${params.inpaintPrompt}`;
     handleApiCall(
-      () => geminiService.editImage({ baseImage: activeImage.url, maskImage, inpaintPrompt: params.inpaintPrompt, references: params.references }),
+      () => geminiService.editImage({ baseImage: activeImage.url, maskImage, inpaintPrompt: params.inpaintPrompt, references: params.references, isGlobalEdit: params.isGlobal }),
       GenerationType.EDITED,
       promptText
     );
-  }, [activeImage, maskImage]);
+  }, [activeImage, maskImage, handleApiCall]);
 
-  const handleEnhance = useCallback(() => {
+  const handleEnhance = useCallback((type: 'x2' | 'x4' | 'general') => {
     if (!activeImage) return;
-    handleApiCall(() => geminiService.enhanceImage(activeImage.url), GenerationType.ENHANCED, "Enhanced Image");
-  }, [activeImage]);
+    const promptMap = {
+        'x2': "Upscaled (x2)",
+        'x4': "Upscaled (x4)",
+        'general': "Enhanced Image"
+    }
+    handleApiCall(() => geminiService.enhanceImage(activeImage.url, type), GenerationType.ENHANCED, promptMap[type]);
+  }, [activeImage, handleApiCall]);
 
   const handleReplaceBg = useCallback(async (prompt?: string, imageFile?: File | null) => {
     if (!activeImage) return;
@@ -179,13 +216,13 @@ const App: React.FC = () => {
     }
     const promptText = `Background: ${prompt || 'custom image'}`;
     handleApiCall(() => geminiService.replaceBackground(activeImage.url, prompt, backgroundImageBase64), GenerationType.BACKGROUND, promptText);
-  }, [activeImage]);
+  }, [activeImage, handleApiCall]);
 
   const handleOutpaint = useCallback((prompt: string, directions: OutpaintDirection[], aspectRatio: OutpaintAspectRatio, width?: number, height?: number) => {
     if (!activeImage) return;
-    const promptText = `Outpainted (${directions.join(', ')}): ${prompt}`;
-    handleApiCall(() => geminiService.outpaintImage(activeImage.url, prompt, directions, aspectRatio, width, height), GenerationType.OUTPAINTED, promptText);
-  }, [activeImage]);
+    const promptText = `Outpainted (${directions.join(', ')}): ${prompt || 'Natural expansion'}`;
+    handleApiCall(() => geminiService.outpaintImage(activeImage.url, directions, aspectRatio, prompt, width, height), GenerationType.OUTPAINTED, promptText);
+  }, [activeImage, handleApiCall]);
 
   const handleClearCanvas = () => {
     setActiveImage(null);
@@ -302,8 +339,10 @@ const App: React.FC = () => {
             redoTrigger={redoTrigger}
             clearMaskTrigger={clearMaskTrigger}
             onHistoryChange={(can, canR) => { setCanMaskUndo(can); setCanMaskRedo(canR); }}
+            onMaskDirty={() => setIsMaskDrawn(true)}
+            onMaskCleared={() => setIsMaskDrawn(false)}
           />
-          <Gallery images={images} activeImageId={activeImage?.id || null} onImageSelect={handleSetActiveImage} />
+          <Gallery images={imageHistory} activeImageId={activeImage?.id || null} onImageSelect={handleSelectFromGallery} />
         </div>
         <ControlPanel
             activeTool={activeTool}
@@ -323,6 +362,7 @@ const App: React.FC = () => {
             onClearMask={() => setClearMaskTrigger(c => c + 1)}
             canMaskUndo={canMaskUndo}
             canMaskRedo={canMaskRedo}
+            isMaskDrawn={isMaskDrawn}
             // Global History
             onUndo={handleUndo}
             onRedo={handleRedo}

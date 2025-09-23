@@ -18,14 +18,14 @@ export const SeedInput: React.FC<SeedInputProps> = ({ seed, setSeed, isLocked, s
 
     return (
         <div>
-            <label className="block text-sm font-medium text-gray-400 mb-1">Seed</label>
+            <label className="block text-sm font-medium text-slate-400 mb-1">Seed</label>
             <div className="flex items-center space-x-2">
                 <input
                     type="number"
                     value={seed}
                     onChange={(e) => setSeed(e.target.value)}
                     placeholder="Random"
-                    className="w-full bg-gray-700 border border-gray-600 rounded-md py-2 px-3 text-white focus:ring-indigo-500 focus:border-indigo-500 text-sm"
+                    className="w-full bg-slate-700 border border-slate-600 rounded-md py-2 px-3 text-white focus:ring-banana-500 focus:border-banana-500 text-sm"
                     disabled={isLocked}
                 />
                 <Button variant="icon" onClick={randomizeSeed} disabled={isLocked} aria-label="Randomize seed">

@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { GeneratedImage, Tool } from '../types';
 
@@ -12,10 +11,16 @@ interface CanvasViewProps {
   redoTrigger: number;
   clearMaskTrigger: number;
   onHistoryChange: (canUndo: boolean, canRedo: boolean) => void;
+  onMaskDirty: () => void;
+  onMaskCleared: () => void;
 }
 
 export const CanvasView: React.FC<CanvasViewProps> = (props) => {
-  const { activeTool, activeImage, onClearCanvas, brushSize, onMaskChange, undoTrigger, redoTrigger, clearMaskTrigger, onHistoryChange } = props;
+  const { 
+    activeTool, activeImage, onClearCanvas, brushSize, onMaskChange, 
+    undoTrigger, redoTrigger, clearMaskTrigger, onHistoryChange,
+    onMaskDirty, onMaskCleared
+  } = props;
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
@@ -29,6 +34,7 @@ export const CanvasView: React.FC<CanvasViewProps> = (props) => {
   const [isDrawing, setIsDrawing] = useState(false);
   const [history, setHistory] = useState<ImageData[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
+  const [isMaskVisible, setIsMaskVisible] = useState(false);
 
   const getCanvasContext = () => canvasRef.current?.getContext('2d', { willReadFrequently: true });
 
@@ -42,8 +48,10 @@ export const CanvasView: React.FC<CanvasViewProps> = (props) => {
       setHistory([initialImageData]);
       setHistoryIndex(0);
       onMaskChange(canvas.toDataURL('image/png'));
+      setIsMaskVisible(false);
+      onMaskCleared();
     }
-  }, [onMaskChange]);
+  }, [onMaskChange, onMaskCleared]);
   
   const setupCanvasFromImage = useCallback(() => {
     const img = imageRef.current;
@@ -118,6 +126,8 @@ export const CanvasView: React.FC<CanvasViewProps> = (props) => {
     const coords = getCoords(e);
     if (!coords) return;
     setIsDrawing(true);
+    setIsMaskVisible(true);
+    onMaskDirty();
     const ctx = getCanvasContext();
     if (!ctx) return;
     ctx.beginPath();
@@ -203,7 +213,7 @@ export const CanvasView: React.FC<CanvasViewProps> = (props) => {
     link.click();
     document.body.removeChild(link);
   };
-
+  
   const showMask = activeTool === Tool.EDIT && activeImage;
   const isEditMode = activeTool === Tool.EDIT;
 
@@ -227,13 +237,12 @@ export const CanvasView: React.FC<CanvasViewProps> = (props) => {
                   src={activeImage.url}
                   alt="Active content"
                   className="max-w-full max-h-full block object-contain"
-                  style={{ imageRendering: 'pixelated' }}
                   onLoad={setupCanvasFromImage}
                 />
                 {showMask && (
                    <canvas
                     ref={canvasRef}
-                    className="absolute top-0 left-0 w-full h-full opacity-60"
+                    className={`absolute top-0 left-0 w-full h-full ${isMaskVisible ? 'opacity-60' : 'opacity-0'}`}
                     style={{ cursor: 'crosshair' }}
                     onPointerDown={handlePointerDown}
                     onPointerMove={handlePointerMove}

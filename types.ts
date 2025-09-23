@@ -75,4 +75,5 @@ export interface EditParams {
     maskImage: string;
     inpaintPrompt: string;
     references?: ReferenceImages;
+    isGlobalEdit?: boolean;
 }
