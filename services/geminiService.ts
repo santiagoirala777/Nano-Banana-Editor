@@ -123,24 +123,34 @@ export const editImage = async (params: EditParams): Promise<string> => {
         parts.push({ text: instruction }, { text: "Base Image:" }, baseImagePart);
     } else {
         const maskImagePart = base64ToInlineData(maskImage);
-        instruction = `You are a world-class digital artist specializing in photorealistic inpainting. Your task is to intelligently modify the 'Base Image'.
-Follow these critical instructions:
-1.  Use the 'Mask Image' as a guide. The white area indicates the region you should edit. The black area indicates the region you must preserve from the original 'Base Image'.
-2.  Your primary instruction for the change is: "${inpaintPrompt}". Apply this change ONLY inside the white area of the mask.
-3.  The content in the black area must remain unchanged from the original 'Base Image'.
-4.  Ensure the final image has the exact same dimensions as the original. Do not crop, resize, or change the aspect ratio.`;
+        instruction = `# MISSION: Photorealistic Inpainting
+
+You are an expert digital artist. Your task is to modify the 'Base Image'. You will be given a 'Mask Image' to guide your work.
+
+## NON-NEGOTIABLE RULES:
+1.  **DIMENSIONS ARE SACRED:** The output image MUST have the **EXACT SAME** dimensions (width and height) as the 'Base Image'. Do NOT crop, stretch, resize, or alter the aspect ratio in any way. This is your most important rule.
+2.  **PRESERVE THE BLACK:** Any area that is **BLACK** on the 'Mask Image' is a **NO-TOUCH ZONE**. These pixels MUST be preserved perfectly from the 'Base Image'. Do not alter them.
+3.  **EDIT THE WHITE:** Your creative work happens ONLY in the **WHITE** area of the 'Mask Image'.
+4.  **SEAMLESS INTEGRATION:** Blend your edits in the white area seamlessly with the original, untouched black areas. The final result must look like a single, coherent photograph.
+
+## INSTRUCTIONS FOR THE WHITE AREA:
+- **Primary Goal:** ${inpaintPrompt}
+`;
         
         if (references && Object.keys(references).length > 0) {
-            instruction += `\n5. Additionally, use the following visual references to guide the changes ONLY within the white masked area:`;
+            instruction += `- **Visual References:** Use the provided reference images to guide the changes:\n`;
             for (const [section, base64] of Object.entries(references)) {
                 if (base64) {
                     const sectionLower = (section as ReferenceSection).toLowerCase();
-                    instruction += `\n   - For the ${sectionLower}, refer to the '${section as ReferenceSection}' reference image.`;
+                    instruction += `  - For the ${sectionLower}, refer to the '${section as ReferenceSection}' reference image.\n`;
                 }
             }
         }
         
-        instruction += `\n6. Seamlessly blend your edits with the original image for a photorealistic result. The output MUST be only the final image. No text, no explanations.`;
+        instruction += `
+## FINAL OUTPUT:
+- You MUST output ONLY the final, modified image. No text, no explanations.
+`;
         parts.push({ text: instruction }, { text: "Base Image:" }, baseImagePart, { text: "Mask Image:" }, maskImagePart);
     }
     

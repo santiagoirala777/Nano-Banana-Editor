@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { GeneratedImage, Tool } from '../types';
 
@@ -28,6 +29,8 @@ export const CanvasView: React.FC<CanvasViewProps> = (props) => {
 
   const isPanning = useRef(false);
   const lastPanPoint = useRef({ x: 0, y: 0 });
+  const lastPoint = useRef<{ x: number; y: number } | null>(null);
+
 
   const [transform, setTransform] = useState({ scale: 1, offsetX: 0, offsetY: 0 });
   
@@ -130,30 +133,49 @@ export const CanvasView: React.FC<CanvasViewProps> = (props) => {
     onMaskDirty();
     const ctx = getCanvasContext();
     if (!ctx) return;
+    
+    lastPoint.current = coords;
+
+    // Draw a dot for single clicks for better user experience
     ctx.beginPath();
-    ctx.moveTo(coords.x, coords.y);
+    ctx.fillStyle = 'white';
+    ctx.arc(coords.x, coords.y, brushSize / 2, 0, 2 * Math.PI);
+    ctx.fill();
   };
 
   const draw = (e: React.PointerEvent) => {
     if (!isDrawing) return;
     const coords = getCoords(e);
-    if (!coords) return;
+    // We need lastPoint to draw a line from it.
+    if (!coords || !lastPoint.current) return;
+    
     const ctx = getCanvasContext();
     if (!ctx) return;
+
+    // Draw a line from the last point to the current point
+    ctx.beginPath();
+    ctx.moveTo(lastPoint.current.x, lastPoint.current.y);
+    ctx.lineTo(coords.x, coords.y);
+    
+    // Style the line
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.lineWidth = brushSize;
     ctx.globalCompositeOperation = 'source-over';
     ctx.strokeStyle = 'white';
-    ctx.lineTo(coords.x, coords.y);
+
     ctx.stroke();
+    
+    // Update the last point
+    lastPoint.current = coords;
   };
 
   const stopDrawing = () => {
     if (!isDrawing) return;
-    const ctx = getCanvasContext();
-    if(ctx) ctx.closePath();
     setIsDrawing(false);
+    lastPoint.current = null; // Reset for the next stroke
+
+    // Save the final state of the drawing action to history
     saveToHistory();
     if (canvasRef.current) {
         onMaskChange(canvasRef.current.toDataURL('image/png'));
