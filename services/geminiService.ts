@@ -127,7 +127,11 @@ export const editImage = async (params: EditParams): Promise<string> => {
 };
 
 export const enhanceImage = (baseImage: string): Promise<string> => {
-    const prompt = "Subtly enhance this image. Upscale to a higher resolution, improve skin texture to be realistic yet flawless, sharpen details like eyes and hair, and optimize lighting and color for a professional, vibrant, Instagram-ready look. Do not change the subject or composition.";
+    const prompt = `Perform a high-impact, professional-grade enhancement on this image. Your task is to produce a dramatically improved version.
+1.  **Upscale to 4K:** Intelligently increase the resolution to 4K, adding fine, realistic details.
+2.  **Cinematic Retouching:** Perform a magazine-quality skin retouch. Smooth blemishes and imperfections while preserving natural skin texture. Enhance the eyes and hair, making them sharp and vibrant.
+3.  **Advanced Color & Light:** Apply cinematic color grading. Expand the dynamic range for deeper blacks and brighter highlights. Correct any color cast and enhance the overall color harmony. Optimize the lighting to add depth and drama.
+4.  **Final Polish:** Add micro-contrast for a crisp, detailed look. The final image should be ready for a high-fashion social media campaign. Do not change the subject or composition. The output must be only the enhanced image.`;
     
     const parts = [ base64ToInlineData(baseImage), { text: prompt } ];
     
@@ -166,8 +170,24 @@ export const replaceBackground = async (baseImage: string, backgroundPrompt?: st
     return handleApiResponse(response);
 };
 
-export const outpaintImage = async (baseImage: string, prompt: string, directions: OutpaintDirection[], aspectRatio: OutpaintAspectRatio): Promise<string> => {
-    const instruction = `You are an expert at outpainting. Expand the provided image to fit a new aspect ratio of ${aspectRatio}. The original image should be perfectly preserved. Fill the new areas (in the directions: ${directions.join(', ')}) with content that logically and stylistically continues the original image. The final image should be a seamless, single composition. Use this creative prompt for the new areas: "${prompt}".`;
+export const outpaintImage = async (
+    baseImage: string, 
+    prompt: string, 
+    directions: OutpaintDirection[], 
+    aspectRatio: OutpaintAspectRatio,
+    customWidth?: number,
+    customHeight?: number
+): Promise<string> => {
+    let targetDimensionText: string;
+    if (aspectRatio === OutpaintAspectRatio.CUSTOM && customWidth && customHeight) {
+        targetDimensionText = `a custom dimension of ${customWidth}x${customHeight} pixels`;
+    } else if (aspectRatio === OutpaintAspectRatio.FREEFORM) {
+        targetDimensionText = 'a new dimension by expanding naturally without a fixed aspect ratio';
+    } else {
+        targetDimensionText = `a new aspect ratio of ${aspectRatio}`;
+    }
+
+    const instruction = `You are an expert at outpainting. Expand the provided image to fit ${targetDimensionText}. The original image content must be perfectly preserved at its center. Fill the new areas (in the specified directions: ${directions.join(', ')}) with content that logically and stylistically continues the original image. The final image should be a seamless, single composition. Use this creative prompt for the new areas: "${prompt}".`;
     
     const parts = [ { text: instruction }, base64ToInlineData(baseImage) ];
 

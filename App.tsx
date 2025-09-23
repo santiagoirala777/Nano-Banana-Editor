@@ -181,10 +181,10 @@ const App: React.FC = () => {
     handleApiCall(() => geminiService.replaceBackground(activeImage.url, prompt, backgroundImageBase64), GenerationType.BACKGROUND, promptText);
   }, [activeImage]);
 
-  const handleOutpaint = useCallback((prompt: string, directions: OutpaintDirection[], aspectRatio: OutpaintAspectRatio) => {
+  const handleOutpaint = useCallback((prompt: string, directions: OutpaintDirection[], aspectRatio: OutpaintAspectRatio, width?: number, height?: number) => {
     if (!activeImage) return;
     const promptText = `Outpainted (${directions.join(', ')}): ${prompt}`;
-    handleApiCall(() => geminiService.outpaintImage(activeImage.url, prompt, directions, aspectRatio), GenerationType.OUTPAINTED, promptText);
+    handleApiCall(() => geminiService.outpaintImage(activeImage.url, prompt, directions, aspectRatio, width, height), GenerationType.OUTPAINTED, promptText);
   }, [activeImage]);
 
   const handleClearCanvas = () => {
@@ -239,13 +239,42 @@ const App: React.FC = () => {
     const zipBlob = await zip.generateAsync({ type: 'blob' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(zipBlob);
-    link.download = `ai-studio-session-${new Date().toISOString().slice(0,10)}.zip`;
+    link.download = `nano-banana-session-${new Date().toISOString().slice(0,10)}.zip`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(link.href);
   }
   
+  const handleDownloadImagesOnly = async () => {
+    if (typeof JSZip === 'undefined') {
+        alert('Could not start download. JSZip library is missing.');
+        return;
+    }
+    const zip = new JSZip();
+
+    for (const id of selectedImageIds) {
+        const image = images.find(img => img.id === id);
+        if (!image) continue;
+        try {
+            const response = await fetch(image.url);
+            const blob = await response.blob();
+            zip.file(`${image.id}.png`, blob);
+        } catch (error) {
+            console.error(`Failed to process image ${image.id}:`, error);
+        }
+    }
+
+    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(zipBlob);
+    link.download = `nano-banana-images-${new Date().toISOString().slice(0,10)}.zip`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+  };
+
   const handleDeleteSelected = () => {
     if (window.confirm(`Are you sure you want to delete ${selectedImageIds.length} image(s) from this session?`)) {
         const newImages = images.filter(img => !selectedImageIds.includes(img.id));
@@ -258,7 +287,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-gray-900 overflow-hidden">
+    <div className="h-screen w-screen flex flex-col bg-slate-900 overflow-hidden">
       {isLoading && <Loader message={loadingMessage} />}
       <div className="flex flex-1 min-h-0">
         <Sidebar activeTool={activeTool} onToolChange={setActiveTool} />
@@ -309,6 +338,7 @@ const App: React.FC = () => {
             selectedImageIds={selectedImageIds}
             onSelectionToggle={handleSelectionToggle}
             onDownloadSelected={handleDownloadSelected}
+            onDownloadImagesOnly={handleDownloadImagesOnly}
             onDeleteSelected={handleDeleteSelected}
             onDirectImageUpload={handleDirectImageUpload}
         />

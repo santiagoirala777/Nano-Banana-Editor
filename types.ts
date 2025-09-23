@@ -39,6 +39,8 @@ export enum ReferenceSection {
 }
 
 export enum OutpaintAspectRatio {
+    FREEFORM = 'Freeform',
+    CUSTOM = 'Custom',
     SQUARE_1_1 = '1:1',
     LANDSCAPE_4_3 = '4:3',
     LANDSCAPE_16_9 = '16:9',

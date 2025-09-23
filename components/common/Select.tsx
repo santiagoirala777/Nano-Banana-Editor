@@ -9,9 +9,9 @@ interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
 export const Select: React.FC<SelectProps> = ({ label, options, className = '', ...props }) => {
   return (
     <div className="w-full">
-      <label className="block text-sm font-medium text-gray-400 mb-1">{label}</label>
+      <label className="block text-sm font-medium text-slate-400 mb-1">{label}</label>
       <select
-        className={`w-full bg-gray-700 border border-gray-600 rounded-md py-2 px-3 text-white focus:ring-indigo-500 focus:border-indigo-500 text-sm ${className}`}
+        className={`w-full bg-slate-700 border border-slate-600 rounded-md py-2 px-3 text-white focus:ring-banana-500 focus:border-banana-500 text-sm ${className}`}
         {...props}
       >
         {options.map((option) => (

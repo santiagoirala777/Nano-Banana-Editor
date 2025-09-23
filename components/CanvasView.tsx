@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { GeneratedImage, Tool } from '../types';
 
@@ -193,11 +194,21 @@ export const CanvasView: React.FC<CanvasViewProps> = (props) => {
     e.currentTarget.releasePointerCapture(e.pointerId);
   }
 
+  const handleDownload = () => {
+    if (!activeImage) return;
+    const link = document.createElement('a');
+    link.href = activeImage.url;
+    link.download = `nano-banana-${activeImage.id}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const showMask = activeTool === Tool.EDIT && activeImage;
   const isEditMode = activeTool === Tool.EDIT;
 
   return (
-    <main className="flex-1 bg-gray-900 flex items-center justify-center p-4 md:p-8 overflow-hidden" onWheel={isEditMode ? handleWheel : undefined}>
+    <main className="flex-1 bg-slate-900/50 flex items-center justify-center p-4 md:p-8 overflow-hidden" onWheel={isEditMode ? handleWheel : undefined}>
         {activeImage ? (
           <>
             <div 
@@ -232,28 +243,39 @@ export const CanvasView: React.FC<CanvasViewProps> = (props) => {
                 )}
               </div>
             </div>
-             <button
-                onClick={onClearCanvas}
-                className="absolute top-2 right-2 bg-black bg-opacity-50 text-white rounded-full p-1.5 hover:bg-opacity-75 z-20 transition-opacity"
-                aria-label="Clear image from canvas"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+             <div className="absolute top-2 right-2 flex space-x-2 z-20">
+                <button
+                    onClick={handleDownload}
+                    className="bg-black bg-opacity-50 text-white rounded-full p-1.5 hover:bg-opacity-75 transition-opacity"
+                    aria-label="Download image"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                </button>
+                <button
+                    onClick={onClearCanvas}
+                    className="bg-black bg-opacity-50 text-white rounded-full p-1.5 hover:bg-opacity-75 transition-opacity"
+                    aria-label="Clear image from canvas"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+             </div>
               {isEditMode && (
-                 <div className="absolute bottom-2 left-2 bg-gray-900/50 text-white text-xs rounded-md px-2 py-1 backdrop-blur-sm z-20">
+                 <div className="absolute bottom-2 left-2 bg-slate-900/50 text-white text-xs rounded-md px-2 py-1 backdrop-blur-sm z-20">
                     Zoom: {(transform.scale * 100).toFixed(0)}%
                 </div>
               )}
           </>
         ) : (
-          <div className="text-center text-gray-500">
+          <div className="text-center text-slate-500">
             <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto h-24 w-24" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
-            <h3 className="mt-2 text-lg font-medium text-white">Virtual Model Studio</h3>
-            <p className="mt-1 text-sm text-gray-400">Generate your first image to begin.</p>
+            <h3 className="mt-2 text-lg font-medium text-white">Nano Banana Studio</h3>
+            <p className="mt-1 text-sm text-slate-400">Generate your first image to begin.</p>
           </div>
         )}
     </main>
