@@ -17,12 +17,13 @@ export const CanvasView: React.FC<CanvasViewProps> = (props) => {
   const { activeTool, activeImage, onClearCanvas, brushSize, onMaskChange, undoTrigger, redoTrigger, clearMaskTrigger, onHistoryChange } = props;
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
+  const transformGroupRef = useRef<HTMLDivElement>(null);
+
   const isPanning = useRef(false);
   const lastPanPoint = useRef({ x: 0, y: 0 });
 
   const [transform, setTransform] = useState({ scale: 1, offsetX: 0, offsetY: 0 });
-  const [aspectRatio, setAspectRatio] = useState('1 / 1');
   
   const [isDrawing, setIsDrawing] = useState(false);
   const [history, setHistory] = useState<ImageData[]>([]);
@@ -42,23 +43,23 @@ export const CanvasView: React.FC<CanvasViewProps> = (props) => {
       onMaskChange(canvas.toDataURL('image/png'));
     }
   }, [onMaskChange]);
+  
+  const setupCanvasFromImage = useCallback(() => {
+    const img = imageRef.current;
+    const canvas = canvasRef.current;
+    if (img && canvas) {
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      resetCanvasState();
+    }
+  }, [resetCanvasState]);
+
 
   useEffect(() => {
     if (activeImage) {
-      const img = new Image();
-      img.onload = () => {
-          setAspectRatio(`${img.naturalWidth} / ${img.naturalHeight}`);
-          const canvas = canvasRef.current;
-          if (canvas) {
-              canvas.width = img.naturalWidth;
-              canvas.height = img.naturalHeight;
-              resetCanvasState();
-          }
-      };
-      img.src = activeImage.url;
       setTransform({ scale: 1, offsetX: 0, offsetY: 0 });
     }
-  }, [activeImage, resetCanvasState]);
+  }, [activeImage]);
 
   useEffect(() => {
     onHistoryChange(historyIndex > 0, historyIndex < history.length - 1);
@@ -101,9 +102,11 @@ export const CanvasView: React.FC<CanvasViewProps> = (props) => {
   const getCoords = (e: React.MouseEvent | React.PointerEvent): { x: number; y: number } | null => {
     const canvas = canvasRef.current;
     if (!canvas) return null;
+
     const rect = canvas.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
+
     return {
       x: x * (canvas.width / rect.width),
       y: y * (canvas.height / rect.height),
@@ -111,8 +114,6 @@ export const CanvasView: React.FC<CanvasViewProps> = (props) => {
   };
   
   const startDrawing = (e: React.PointerEvent) => {
-    if (activeTool !== Tool.EDIT || e.button !== 0) return;
-    e.currentTarget.setPointerCapture(e.pointerId);
     const coords = getCoords(e);
     if (!coords) return;
     setIsDrawing(true);
@@ -123,7 +124,7 @@ export const CanvasView: React.FC<CanvasViewProps> = (props) => {
   };
 
   const draw = (e: React.PointerEvent) => {
-    if (!isDrawing || activeTool !== Tool.EDIT) return;
+    if (!isDrawing) return;
     const coords = getCoords(e);
     if (!coords) return;
     const ctx = getCanvasContext();
@@ -137,7 +138,7 @@ export const CanvasView: React.FC<CanvasViewProps> = (props) => {
     ctx.stroke();
   };
 
-  const stopDrawing = (e: React.PointerEvent) => {
+  const stopDrawing = () => {
     if (!isDrawing) return;
     const ctx = getCanvasContext();
     if(ctx) ctx.closePath();
@@ -146,7 +147,6 @@ export const CanvasView: React.FC<CanvasViewProps> = (props) => {
     if (canvasRef.current) {
         onMaskChange(canvasRef.current.toDataURL('image/png'));
     }
-    e.currentTarget.releasePointerCapture(e.pointerId);
   };
 
   const handleWheel = (e: React.WheelEvent) => {
@@ -157,12 +157,14 @@ export const CanvasView: React.FC<CanvasViewProps> = (props) => {
   }
 
   const handlePointerDown = (e: React.PointerEvent) => {
-    if (e.button === 1) { // Middle mouse button
+    if (activeTool !== Tool.EDIT) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+
+    if (e.button === 1) {
         e.preventDefault();
         isPanning.current = true;
         lastPanPoint.current = { x: e.clientX, y: e.clientY };
-        e.currentTarget.setPointerCapture(e.pointerId);
-    } else {
+    } else if (e.button === 0) {
         startDrawing(e);
     }
   }
@@ -185,10 +187,10 @@ export const CanvasView: React.FC<CanvasViewProps> = (props) => {
   const handlePointerUp = (e: React.PointerEvent) => {
     if (isPanning.current) {
         isPanning.current = false;
-        e.currentTarget.releasePointerCapture(e.pointerId);
     } else {
-        stopDrawing(e);
+        stopDrawing();
     }
+    e.currentTarget.releasePointerCapture(e.pointerId);
   }
 
   const showMask = activeTool === Tool.EDIT && activeImage;
@@ -196,41 +198,43 @@ export const CanvasView: React.FC<CanvasViewProps> = (props) => {
 
   return (
     <main className="flex-1 bg-gray-900 flex items-center justify-center p-4 md:p-8 overflow-hidden" onWheel={isEditMode ? handleWheel : undefined}>
-      <div 
-        ref={containerRef} 
-        className="relative w-full h-full flex items-center justify-center"
-      >
         {activeImage ? (
           <>
             <div 
-              className="absolute transition-transform duration-100 ease-linear shadow-2xl"
-              style={{ 
+              className="relative w-full h-full flex items-center justify-center"
+            >
+              <div
+                ref={transformGroupRef}
+                className="relative transition-transform duration-100 ease-linear"
+                style={{
                   transform: `scale(${transform.scale}) translate(${transform.offsetX}px, ${transform.offsetY}px)`,
                   touchAction: isEditMode ? 'none' : 'auto',
-                  aspectRatio,
-                  backgroundImage: `url(${activeImage.url})`,
-                  backgroundSize: 'contain',
-                  backgroundRepeat: 'no-repeat',
-                  backgroundPosition: 'center',
-                  width: '100%',
-                  height: '100%',
-              }}
-            >
-              {showMask && (
-                <canvas
-                  ref={canvasRef}
-                  className="w-full h-full object-contain opacity-60"
-                  style={{ cursor: 'crosshair', imageRendering: 'pixelated' }}
-                  onPointerDown={handlePointerDown}
-                  onPointerMove={handlePointerMove}
-                  onPointerUp={handlePointerUp}
-                  onPointerLeave={handlePointerUp}
+                }}
+              >
+                <img
+                  ref={imageRef}
+                  src={activeImage.url}
+                  alt="Active content"
+                  className="max-w-full max-h-full block object-contain"
+                  style={{ imageRendering: 'pixelated' }}
+                  onLoad={setupCanvasFromImage}
                 />
-              )}
+                {showMask && (
+                   <canvas
+                    ref={canvasRef}
+                    className="absolute top-0 left-0 w-full h-full opacity-60"
+                    style={{ cursor: 'crosshair' }}
+                    onPointerDown={handlePointerDown}
+                    onPointerMove={handlePointerMove}
+                    onPointerUp={handlePointerUp}
+                    onPointerLeave={handlePointerUp}
+                  />
+                )}
+              </div>
             </div>
              <button
                 onClick={onClearCanvas}
-                className="absolute top-2 right-2 bg-black bg-opacity-50 text-white rounded-full p-1.5 hover:bg-opacity-75 z-10 transition-opacity"
+                className="absolute top-2 right-2 bg-black bg-opacity-50 text-white rounded-full p-1.5 hover:bg-opacity-75 z-20 transition-opacity"
                 aria-label="Clear image from canvas"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -238,7 +242,7 @@ export const CanvasView: React.FC<CanvasViewProps> = (props) => {
                 </svg>
               </button>
               {isEditMode && (
-                 <div className="absolute bottom-2 left-2 bg-gray-900/50 text-white text-xs rounded-md px-2 py-1 backdrop-blur-sm z-10">
+                 <div className="absolute bottom-2 left-2 bg-gray-900/50 text-white text-xs rounded-md px-2 py-1 backdrop-blur-sm z-20">
                     Zoom: {(transform.scale * 100).toFixed(0)}%
                 </div>
               )}
@@ -252,7 +256,6 @@ export const CanvasView: React.FC<CanvasViewProps> = (props) => {
             <p className="mt-1 text-sm text-gray-400">Generate your first image to begin.</p>
           </div>
         )}
-      </div>
     </main>
   );
 };
