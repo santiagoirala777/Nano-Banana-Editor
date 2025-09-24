@@ -27,10 +27,8 @@ export const CanvasView: React.FC<CanvasViewProps> = (props) => {
   const imageRef = useRef<HTMLImageElement>(null);
   const transformGroupRef = useRef<HTMLDivElement>(null);
 
-  const isPanning = useRef(false);
   const lastPanPoint = useRef({ x: 0, y: 0 });
   const lastPoint = useRef<{ x: number; y: number } | null>(null);
-
 
   const [transform, setTransform] = useState({ scale: 1, offsetX: 0, offsetY: 0 });
   
@@ -38,6 +36,28 @@ export const CanvasView: React.FC<CanvasViewProps> = (props) => {
   const [history, setHistory] = useState<ImageData[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [isMaskVisible, setIsMaskVisible] = useState(false);
+  
+  const [isPanning, setIsPanning] = useState(false);
+  const [isSpacePressed, setIsSpacePressed] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === ' ' && !e.repeat) {
+            setIsSpacePressed(true);
+        }
+    };
+    const handleKeyUp = (e: KeyboardEvent) => {
+        if (e.key === ' ') {
+            setIsSpacePressed(false);
+        }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+        window.removeEventListener('keydown', handleKeyDown);
+        window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, []);
 
   const getCanvasContext = () => canvasRef.current?.getContext('2d', { willReadFrequently: true });
 
@@ -193,9 +213,9 @@ export const CanvasView: React.FC<CanvasViewProps> = (props) => {
     if (activeTool !== Tool.EDIT) return;
     e.currentTarget.setPointerCapture(e.pointerId);
 
-    if (e.button === 1) {
+    if ((e.button === 0 && isSpacePressed) || e.button === 1) { // Pan with Space+LMB or MMB
         e.preventDefault();
-        isPanning.current = true;
+        setIsPanning(true);
         lastPanPoint.current = { x: e.clientX, y: e.clientY };
     } else if (e.button === 0) {
         startDrawing(e);
@@ -203,7 +223,7 @@ export const CanvasView: React.FC<CanvasViewProps> = (props) => {
   }
 
   const handlePointerMove = (e: React.PointerEvent) => {
-    if (isPanning.current) {
+    if (isPanning) {
         const dx = e.clientX - lastPanPoint.current.x;
         const dy = e.clientY - lastPanPoint.current.y;
         setTransform(prev => ({
@@ -218,8 +238,8 @@ export const CanvasView: React.FC<CanvasViewProps> = (props) => {
   }
 
   const handlePointerUp = (e: React.PointerEvent) => {
-    if (isPanning.current) {
-        isPanning.current = false;
+    if (isPanning) {
+        setIsPanning(false);
     } else {
         stopDrawing();
     }
@@ -238,6 +258,12 @@ export const CanvasView: React.FC<CanvasViewProps> = (props) => {
   
   const showMask = activeTool === Tool.EDIT && activeImage;
   const isEditMode = activeTool === Tool.EDIT;
+
+  const getCursor = () => {
+    if (isPanning) return 'grabbing';
+    if (isSpacePressed) return 'grab';
+    return 'crosshair';
+  };
 
   return (
     <main className="flex-1 bg-slate-900/50 flex items-center justify-center p-4 md:p-8 overflow-hidden" onWheel={isEditMode ? handleWheel : undefined}>
@@ -265,7 +291,7 @@ export const CanvasView: React.FC<CanvasViewProps> = (props) => {
                    <canvas
                     ref={canvasRef}
                     className={`absolute top-0 left-0 w-full h-full ${isMaskVisible ? 'opacity-60' : 'opacity-0'}`}
-                    style={{ cursor: 'crosshair' }}
+                    style={{ cursor: getCursor() }}
                     onPointerDown={handlePointerDown}
                     onPointerMove={handlePointerMove}
                     onPointerUp={handlePointerUp}

@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
-import { Tool, GeneratedImage, ReferenceImages, ReferenceSection, OutpaintDirection, OutpaintAspectRatio, GenerationType } from './types';
+import { Tool, GeneratedImage, ReferenceData, ReferenceSection, OutpaintDirection, OutpaintAspectRatio, GenerationType } from './types';
 import Sidebar from './components/Sidebar';
 import { ControlPanel } from './components/ControlPanel';
 import { CanvasView } from './components/CanvasView';
@@ -12,7 +13,7 @@ declare const JSZip: any;
 
 const App: React.FC = () => {
   const [activeTool, setActiveTool] = useState<Tool>(Tool.GENERATE);
-  const [referenceImages, setReferenceImages] = useState<ReferenceImages>({});
+  const [referenceData, setReferenceData] = useState<ReferenceData>({});
   
   const [images, setImages] = useState<GeneratedImage[]>([]);
   const [activeImage, setActiveImage] = useState<GeneratedImage | null>(null);
@@ -77,7 +78,7 @@ const App: React.FC = () => {
   };
 
 
-  const addNewImage = useCallback((url: string, type: GenerationType, prompt?: string, generationSeed?: number, refs?: ReferenceImages) => {
+  const addNewImage = useCallback((url: string, type: GenerationType, prompt?: string, generationSeed?: number, refs?: ReferenceData) => {
     const newImage: GeneratedImage = { 
         url, 
         type, 
@@ -91,26 +92,54 @@ const App: React.FC = () => {
     handleSetActiveImage(newImage);
   }, [handleSetActiveImage])
 
-  const handleImageUpload = (section: ReferenceSection, file: File | null) => {
+ const handleReferenceImageChange = (section: ReferenceSection, file: File | null) => {
     if (!file) {
-      setReferenceImages(prev => {
-        const next = {...prev};
-        delete next[section];
-        return next;
+      setReferenceData(prev => {
+        const sectionData = { ...prev[section] };
+        delete sectionData.image;
+
+        if (!sectionData.prompt) { // If no prompt either, remove whole section
+          const next = { ...prev };
+          delete next[section];
+          return next;
+        }
+        // Otherwise, just update with image removed
+        return { ...prev, [section]: sectionData as any };
       });
       return;
     }
-    
+
     const reader = new FileReader();
     reader.onload = (e) => {
       const resultUrl = e.target?.result as string;
       if (resultUrl) {
-        setReferenceImages(prev => ({...prev, [section]: resultUrl}));
+        setReferenceData(prev => ({
+            ...prev,
+            [section]: { ...prev[section], image: resultUrl, prompt: prev[section]?.prompt || '' }
+        }));
       }
     };
     reader.readAsDataURL(file);
   };
-  
+
+  const handleReferencePromptChange = (section: ReferenceSection, prompt: string) => {
+    const sectionData = { ...referenceData[section] };
+    sectionData.prompt = prompt;
+
+    if (!sectionData.image && !sectionData.prompt) {
+      setReferenceData(prev => {
+        const next = { ...prev };
+        delete next[section];
+        return next;
+      });
+    } else {
+      setReferenceData(prev => ({
+        ...prev,
+        [section]: { image: sectionData.image, prompt: sectionData.prompt } as any
+      }));
+    }
+  };
+
   const handleDirectImageUpload = (file: File) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -122,7 +151,7 @@ const App: React.FC = () => {
     reader.readAsDataURL(file);
   };
 
-  const handleApiCall = useCallback(async (apiFunc: () => Promise<string>, type: GenerationType, promptText?: string, generationSeed?: number, refs?: ReferenceImages) => {
+  const handleApiCall = useCallback(async (apiFunc: () => Promise<string>, type: GenerationType, promptText?: string, generationSeed?: number, refs?: ReferenceData) => {
     setIsLoading(true);
     setLoadingMessage(LOADING_MESSAGES[0]);
     try {
@@ -162,14 +191,14 @@ const App: React.FC = () => {
     setLoadingMessage(LOADING_MESSAGES[0]);
 
     try {
-        const resultUrl = await geminiService.generateImageFromReferences(referenceImages, prompt, negativePrompt, seedToUse);
+        const resultUrl = await geminiService.generateImageFromReferences(referenceData, prompt, negativePrompt, seedToUse);
         
         let fullPrompt = prompt || "Generated from image references";
         if (negativePrompt) {
             fullPrompt += ` | Negative: ${negativePrompt}`;
         }
         
-        addNewImage(resultUrl, GenerationType.GENERATED, fullPrompt, seedToUse, referenceImages);
+        addNewImage(resultUrl, GenerationType.GENERATED, fullPrompt, seedToUse, referenceData);
         setSeed(seedToUse.toString());
 
     } catch (error) {
@@ -178,9 +207,9 @@ const App: React.FC = () => {
     } finally {
         setIsLoading(false);
     }
-  }, [referenceImages, addNewImage]);
+  }, [referenceData, addNewImage]);
 
-  const handleEdit = useCallback(async (params: { inpaintPrompt: string, references?: ReferenceImages, isGlobal: boolean }) => {
+  const handleEdit = useCallback(async (params: { inpaintPrompt: string, references?: ReferenceData, isGlobal: boolean }) => {
     if (!activeImage) return;
     if (!params.isGlobal && !maskImage) {
         alert("Please draw a mask on the image to specify the area to edit.");
@@ -347,8 +376,9 @@ const App: React.FC = () => {
         </div>
         <ControlPanel
             activeTool={activeTool}
-            referenceImages={referenceImages}
-            onReferenceImageChange={handleImageUpload}
+            referenceData={referenceData}
+            onReferenceImageChange={handleReferenceImageChange}
+            onReferencePromptChange={handleReferencePromptChange}
             isLoading={isLoading}
             activeImage={activeImage}
             onGenerate={handleGenerate}

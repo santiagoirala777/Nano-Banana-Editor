@@ -1,15 +1,30 @@
 
 import React from 'react';
+import { TextArea } from './TextInput';
 
 interface ImageUploaderProps {
   label: string;
   description: string;
   imageSrc?: string;
+  prompt?: string;
   onImageUpload: (file: File) => void;
   onImageRemove: () => void;
+  onPromptChange?: (prompt: string) => void;
+  promptPlaceholder?: string;
+  hidePrompt?: boolean;
 }
 
-export const ImageUploader: React.FC<ImageUploaderProps> = ({ label, description, imageSrc, onImageUpload, onImageRemove }) => {
+export const ImageUploader: React.FC<ImageUploaderProps> = ({ 
+    label, 
+    description, 
+    imageSrc, 
+    prompt, 
+    onImageUpload, 
+    onImageRemove, 
+    onPromptChange, 
+    promptPlaceholder, 
+    hidePrompt = false 
+}) => {
   const inputRef = React.useRef<HTMLInputElement>(null);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -67,6 +82,16 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ label, description
           </div>
         )}
       </div>
+      {!hidePrompt && onPromptChange && (
+        <TextArea
+          label="Reference Prompt"
+          className="mt-2 !text-xs"
+          rows={2}
+          placeholder={promptPlaceholder || `e.g., specific instructions for the ${label.toLowerCase()}`}
+          value={prompt}
+          onChange={(e) => onPromptChange(e.target.value)}
+        />
+      )}
     </div>
   );
 };

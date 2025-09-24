@@ -3,16 +3,16 @@ import React from 'react';
 import { Tool, ReferenceSection, OutpaintAspectRatio, GenerationType } from './types';
 
 export const BANANA_LOGO = (
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-banana-400" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12.6,2.8c-0.2-0.2-0.5-0.3-0.8-0.2L3.3,4.9c-0.5,0.2-0.8,0.7-0.6,1.2l1.5,3.9C4.3,10.2,4.5,10.4,4.7,10.5 c3.2,1.7,5.1,4.9,5.1,8.3c0,0.4,0.3,0.7,0.7,0.7c0.4,0,0.7-0.3,0.7-0.7c0-3.8-2.2-7.4-5.6-9.2L4.1,8.8L3.2,6.3l8.1-2.1l1.4,1.4 c-2.3,1.9-3.7,4.7-3.7,7.8c0,0.4,0.3,0.7,0.7,0.7s0.7-0.3,0.7-0.7C10.5,10,12.3,6.3,15.4,4l1.4,1.4l-1.4,1.4 c-2.3,1.9-3.7,4.7-3.7,7.8c0,0.4,0.3,0.7,0.7,0.7s0.7-0.3,0.7-0.7c0-3.8,2.2-7.4,5.6-9.2l1.4-0.7c0.2-0.1,0.4-0.3,0.5-0.5 l1.5-3.9c0.2-0.5-0.2-1-0.6-1.2l-8.5-2.3C13.1,2.5,12.8,2.6,12.6,2.8z" />
-    </svg>
+    <div className="h-10 w-10 bg-banana-600 rounded-md flex items-center justify-center text-white font-bold text-xl ring-2 ring-banana-700">
+        NB
+    </div>
 );
 
 // FIX: Replaced JSX.Element with React.ReactElement to resolve issue with JSX namespace not being found.
 export const ICONS: { [key in Tool]: React.ReactElement } = {
   [Tool.GENERATE]: (
     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 S11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 004 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
     </svg>
   ),
   [Tool.EDIT]: (
@@ -52,7 +52,8 @@ export const TOOL_NAMES: { [key in Tool]: string } = {
 };
 
 export const REFERENCE_SECTIONS: { id: ReferenceSection; label: string; description: string }[] = [
-    { id: ReferenceSection.SUBJECT, label: "Subject", description: "Base face/body of the model." },
+    { id: ReferenceSection.FACE, label: "Face", description: "Close-up of the face for likeness." },
+    { id: ReferenceSection.SUBJECT, label: "Subject", description: "The full person or body type." },
     { id: ReferenceSection.STYLE, label: "Style", description: "Lighting, makeup, color reference." },
     { id: ReferenceSection.ENVIRONMENT, label: "Environment", description: "Background or scene." },
     { id: ReferenceSection.OUTFIT, label: "Outfit", description: "Specific clothing or garments." },

@@ -29,6 +29,7 @@ export enum ImageStyle {
 }
 
 export enum ReferenceSection {
+  FACE = 'Face',
   SUBJECT = 'Subject',
   STYLE = 'Style',
   ENVIRONMENT = 'Environment',
@@ -56,8 +57,13 @@ export enum OutpaintDirection {
     RIGHT = 'right',
 }
 
-export type ReferenceImages = {
-  [key in ReferenceSection]?: string; // base64 data URL
+export interface Reference {
+    image?: string; // base64 data URL
+    prompt: string;
+}
+
+export type ReferenceData = {
+  [key in ReferenceSection]?: Reference;
 };
 
 export interface GeneratedImage {
@@ -67,13 +73,13 @@ export interface GeneratedImage {
   type: GenerationType;
   createdAt: Date;
   seed?: number;
-  references?: ReferenceImages;
+  references?: ReferenceData;
 }
 
 export interface EditParams {
     baseImage: string;
     maskImage: string;
     inpaintPrompt: string;
-    references?: ReferenceImages;
+    references?: ReferenceData;
     isGlobalEdit?: boolean;
 }

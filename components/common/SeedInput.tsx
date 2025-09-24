@@ -10,12 +10,6 @@ interface SeedInputProps {
 }
 
 export const SeedInput: React.FC<SeedInputProps> = ({ seed, setSeed, isLocked, setIsLocked }) => {
-    const randomizeSeed = () => {
-        if (!isLocked) {
-            setSeed(Math.floor(Math.random() * 1000000).toString());
-        }
-    };
-
     return (
         <div>
             <label className="block text-sm font-medium text-slate-400 mb-1">Seed</label>
@@ -24,15 +18,10 @@ export const SeedInput: React.FC<SeedInputProps> = ({ seed, setSeed, isLocked, s
                     type="number"
                     value={seed}
                     onChange={(e) => setSeed(e.target.value)}
-                    placeholder="Random"
+                    placeholder="Random if empty"
                     className="w-full bg-slate-700 border border-slate-600 rounded-md py-2 px-3 text-white focus:ring-banana-500 focus:border-banana-500 text-sm"
                     disabled={isLocked}
                 />
-                <Button variant="icon" onClick={randomizeSeed} disabled={isLocked} aria-label="Randomize seed">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                    </svg>
-                </Button>
                 <Button variant="icon" isActive={isLocked} onClick={() => setIsLocked(!isLocked)} aria-label={isLocked ? "Unlock seed" : "Lock seed"}>
                     {isLocked ? (
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">

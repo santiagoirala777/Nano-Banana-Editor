@@ -1,5 +1,6 @@
+
 import React, { useState } from 'react';
-import { Tool, GeneratedImage, ReferenceImages, ReferenceSection, OutpaintDirection, OutpaintAspectRatio, GenerationType } from '../types';
+import { Tool, GeneratedImage, ReferenceData, ReferenceSection, OutpaintDirection, OutpaintAspectRatio, GenerationType } from '../types';
 import { TOOL_NAMES, REFERENCE_SECTIONS, OUTPAINT_ASPECT_RATIO_OPTIONS, GALLERY_FILTERS } from '../constants';
 import { Button } from './common/Button';
 import { Select } from './common/Select';
@@ -10,12 +11,13 @@ import { SeedInput } from './common/SeedInput';
 
 interface ControlPanelProps {
   activeTool: Tool;
-  referenceImages: ReferenceImages;
+  referenceData: ReferenceData;
   onReferenceImageChange: (section: ReferenceSection, file: File | null) => void;
+  onReferencePromptChange: (section: ReferenceSection, prompt: string) => void;
   isLoading: boolean;
   activeImage: GeneratedImage | null;
   onGenerate: (prompt: string, negativePrompt: string, seed?: number) => void;
-  onEdit: (params: { inpaintPrompt: string, references?: ReferenceImages, isGlobal: boolean }) => void;
+  onEdit: (params: { inpaintPrompt: string, references?: ReferenceData, isGlobal: boolean }) => void;
   onEnhance: (type: 'x2' | 'x4' | 'general') => void;
   onReplaceBg: (prompt?: string, image?: File | null) => void;
   onOutpaint: (prompt: string, directions: OutpaintDirection[], aspectRatio: OutpaintAspectRatio, width?: number, height?: number) => void;
@@ -63,11 +65,11 @@ const ActionHistory: React.FC<Pick<ControlPanelProps, 'onUndo' | 'onRedo' | 'can
     );
 };
 
-const GeneratorPanel: React.FC<Pick<ControlPanelProps, 'referenceImages' | 'onReferenceImageChange' | 'isLoading' | 'onGenerate' | 'seed' | 'setSeed' | 'isSeedLocked' | 'setIsSeedLocked'>> = 
-({ referenceImages, onReferenceImageChange, isLoading, onGenerate, seed, setSeed, isSeedLocked, setIsSeedLocked }) => {
+const GeneratorPanel: React.FC<Pick<ControlPanelProps, 'referenceData' | 'onReferenceImageChange' | 'onReferencePromptChange' | 'isLoading' | 'onGenerate' | 'seed' | 'setSeed' | 'isSeedLocked' | 'setIsSeedLocked'>> = 
+({ referenceData, onReferenceImageChange, onReferencePromptChange, isLoading, onGenerate, seed, setSeed, isSeedLocked, setIsSeedLocked }) => {
     const [prompt, setPrompt] = useState('');
     const [negativePrompt, setNegativePrompt] = useState('');
-    const hasAnyImage = Object.values(referenceImages).some(img => !!img);
+    const hasAnyData = Object.values(referenceData).some(ref => !!ref.image || !!ref.prompt);
 
     const handleGenerateClick = () => {
         const numericSeed = seed ? parseInt(seed, 10) : undefined;
@@ -77,16 +79,25 @@ const GeneratorPanel: React.FC<Pick<ControlPanelProps, 'referenceImages' | 'onRe
     return (
         <div className="flex flex-col h-full">
             <div className="flex-grow overflow-y-auto space-y-4 pr-2 custom-scrollbar">
-                <TextArea label="Main Prompt" value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={3} placeholder="e.g., A model on a beach at sunset, hyperrealistic..." />
+                <TextArea label="Main Prompt" value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={5} placeholder="e.g., A model on a beach at sunset, hyperrealistic..." />
                 <TextArea label="Negative Prompt" value={negativePrompt} onChange={(e) => setNegativePrompt(e.target.value)} rows={2} placeholder="e.g., extra limbs, poor quality, text" />
                 <SeedInput seed={seed} setSeed={setSeed} isLocked={isSeedLocked} setIsLocked={setIsSeedLocked} />
                 <p className="text-xs text-slate-500 -mt-2">Combine a text prompt with visual references for precise control.</p>
                 {REFERENCE_SECTIONS.map(({ id, label, description }) => (
-                    <ImageUploader key={id} label={label} description={description} imageSrc={referenceImages[id]} onImageUpload={(file) => onReferenceImageChange(id, file)} onImageRemove={() => onReferenceImageChange(id, null)} />
+                    <ImageUploader 
+                        key={id} 
+                        label={label} 
+                        description={description} 
+                        imageSrc={referenceData[id]?.image}
+                        prompt={referenceData[id]?.prompt || ''}
+                        onImageUpload={(file) => onReferenceImageChange(id, file)} 
+                        onImageRemove={() => onReferenceImageChange(id, null)}
+                        onPromptChange={(prompt) => onReferencePromptChange(id, prompt)}
+                    />
                 ))}
             </div>
             <div className="pt-4 mt-auto border-t border-slate-700">
-                <Button onClick={handleGenerateClick} isLoading={isLoading} disabled={!hasAnyImage && !prompt} className="w-full">
+                <Button onClick={handleGenerateClick} isLoading={isLoading} disabled={!hasAnyData && !prompt} className="w-full">
                     Generate
                 </Button>
             </div>
@@ -97,16 +108,27 @@ const GeneratorPanel: React.FC<Pick<ControlPanelProps, 'referenceImages' | 'onRe
 const EditorPanel: React.FC<Pick<ControlPanelProps, 'onEdit' | 'isLoading' | 'brushSize' | 'setBrushSize' | 'onMaskUndo' | 'onMaskRedo' | 'canMaskUndo' | 'canMaskRedo' | 'onClearMask' | 'isMaskDrawn' | 'onUndo' | 'onRedo' | 'canUndo' | 'canRedo'>> = (props) => {
   const { onEdit, isLoading, brushSize, setBrushSize, onMaskUndo, onMaskRedo, canMaskUndo, canMaskRedo, onClearMask, isMaskDrawn } = props;
   const [inpaintPrompt, setInpaintPrompt] = useState('');
-  const [editReferenceImages, setEditReferenceImages] = useState<ReferenceImages>({});
+  const [editReferenceData, setEditReferenceData] = useState<ReferenceData>({});
+  const [faceSwapImage, setFaceSwapImage] = useState<string | undefined>();
   
-  const editReferenceSections = REFERENCE_SECTIONS.filter(sec => sec.id !== ReferenceSection.ENVIRONMENT);
+  const editReferenceSections = REFERENCE_SECTIONS.filter(sec => 
+    sec.id !== ReferenceSection.ENVIRONMENT &&
+    sec.id !== ReferenceSection.FACE &&
+    sec.id !== ReferenceSection.SUBJECT
+  );
 
-  const handleReferenceChange = (section: ReferenceSection, file: File | null) => {
+  const handleReferenceImageChange = (section: ReferenceSection, file: File | null) => {
     if (!file) {
-      setEditReferenceImages(prev => {
-        const next = {...prev};
-        delete next[section];
-        return next;
+      setEditReferenceData(prev => {
+        const sectionData = { ...prev[section] };
+        delete sectionData.image;
+
+        if (!sectionData.prompt) {
+          const next = { ...prev };
+          delete next[section];
+          return next;
+        }
+        return { ...prev, [section]: sectionData as any };
       });
       return;
     }
@@ -114,17 +136,55 @@ const EditorPanel: React.FC<Pick<ControlPanelProps, 'onEdit' | 'isLoading' | 'br
     reader.onload = (e) => {
       const resultUrl = e.target?.result as string;
       if (resultUrl) {
-        setEditReferenceImages(prev => ({...prev, [section]: resultUrl}));
+        setEditReferenceData(prev => ({
+            ...prev,
+            [section]: { ...prev[section], image: resultUrl, prompt: prev[section]?.prompt || '' }
+        }));
       }
     };
     reader.readAsDataURL(file);
   };
 
+  const handleReferencePromptChange = (section: ReferenceSection, prompt: string) => {
+    const sectionData = { ...editReferenceData[section] };
+    sectionData.prompt = prompt;
+
+    if (!sectionData.image && !sectionData.prompt) {
+      setEditReferenceData(prev => {
+        const next = { ...prev };
+        delete next[section];
+        return next;
+      });
+    } else {
+      setEditReferenceData(prev => ({
+        ...prev,
+        [section]: { image: sectionData.image, prompt: sectionData.prompt } as any
+      }));
+    }
+  };
+  
+  const handleFaceSwapUpload = (file: File) => {
+      const reader = new FileReader();
+      reader.onload = e => setFaceSwapImage(e.target?.result as string);
+      reader.readAsDataURL(file);
+  }
+
+  const handleApplyFaceSwap = () => {
+    if (!faceSwapImage || !isMaskDrawn) return;
+    onEdit({
+        inpaintPrompt: 'Perform a face swap on the masked area using the provided "Insert Object" reference image. Blend it seamlessly into the base image, matching lighting, skin tone, and angle.',
+        references: { [ReferenceSection.INSERT_OBJECT]: { image: faceSwapImage, prompt: '' } },
+        isGlobal: false,
+    });
+  }
+
 
   return (
     <div className="flex flex-col h-full">
         <ActionHistory {...props} />
-        <div className="space-y-3 pb-4 border-b border-slate-700">
+        
+        {/* --- MASKING TOOLS (NON-SCROLLABLE) --- */}
+        <div className="space-y-3 pb-4 mb-4 border-b border-slate-700">
             <h3 className="text-sm font-medium text-slate-300">Masking Tools</h3>
             <Slider label="Brush Size" min={5} max={100} value={brushSize} onChange={(e) => setBrushSize(parseInt(e.target.value, 10))} />
             <div className="flex space-x-2">
@@ -137,16 +197,48 @@ const EditorPanel: React.FC<Pick<ControlPanelProps, 'onEdit' | 'isLoading' | 'br
                 <Button variant="secondary" onClick={onClearMask} className="flex-1 text-xs">Clear Mask</Button>
             </div>
         </div>
+
+        {/* --- SCROLLABLE AREA --- */}
         <div className="flex-grow pt-4 space-y-4 overflow-y-auto custom-scrollbar pr-2">
-            <TextArea label="Edit Prompt" value={inpaintPrompt} onChange={(e) => setInpaintPrompt(e.target.value)} rows={4} placeholder="e.g., change hair to blonde, add sunglasses, cinematic lighting" />
-            <p className="text-xs text-slate-500 -mt-2">Optional: Add reference images to guide the edit.</p>
+            <TextArea label="Edit Prompt" value={inpaintPrompt} onChange={(e) => setInpaintPrompt(e.target.value)} rows={3} placeholder="e.g., change hair to blonde, add sunglasses, cinematic lighting" />
+            
+            {/* FACE SWAP UI */}
+            <div className="space-y-2 pt-4 border-t border-slate-700">
+                <ImageUploader
+                    label="Face Swap"
+                    description="Upload a face to swap into the masked area."
+                    imageSrc={faceSwapImage}
+                    onImageUpload={handleFaceSwapUpload}
+                    onImageRemove={() => setFaceSwapImage(undefined)}
+                    hidePrompt={true}
+                />
+                <Button onClick={handleApplyFaceSwap} isLoading={isLoading} disabled={!faceSwapImage || !isMaskDrawn} className="w-full">Apply Face Swap</Button>
+                {faceSwapImage && !isMaskDrawn && (
+                    <p className="text-xs text-center text-banana-400 mt-2">
+                        Please draw a mask on the image to enable.
+                    </p>
+                )}
+            </div>
+
+            <p className="text-xs text-slate-500 !mt-6 pt-4 border-t border-slate-700">Optional: Add other reference images to guide the edit.</p>
+
+            {/* OTHER REFERENCES */}
             {editReferenceSections.map(({ id, label, description }) => (
-              <ImageUploader key={id} label={label} description={description} imageSrc={editReferenceImages[id]} onImageUpload={(file) => handleReferenceChange(id, file)} onImageRemove={() => handleReferenceChange(id, null)} />
+              <ImageUploader 
+                key={id} 
+                label={label} 
+                description={description} 
+                imageSrc={editReferenceData[id]?.image}
+                prompt={editReferenceData[id]?.prompt || ''}
+                onImageUpload={(file) => handleReferenceImageChange(id, file)} 
+                onImageRemove={() => handleReferenceImageChange(id, null)}
+                onPromptChange={(prompt) => handleReferencePromptChange(id, prompt)}
+               />
             ))}
         </div>
         <div className="pt-4 mt-auto border-t border-slate-700 space-y-2">
-            <Button onClick={() => onEdit({ inpaintPrompt, references: editReferenceImages, isGlobal: false })} isLoading={isLoading} disabled={!inpaintPrompt || !isMaskDrawn} className="w-full">Apply to Masked Area</Button>
-            <Button onClick={() => onEdit({ inpaintPrompt, references: editReferenceImages, isGlobal: true })} isLoading={isLoading} disabled={!inpaintPrompt} variant="secondary" className="w-full">Apply as Global Edit</Button>
+            <Button onClick={() => onEdit({ inpaintPrompt, references: editReferenceData, isGlobal: false })} isLoading={isLoading} disabled={!inpaintPrompt || !isMaskDrawn} className="w-full">Apply to Masked Area</Button>
+            <Button onClick={() => onEdit({ inpaintPrompt, references: editReferenceData, isGlobal: true })} isLoading={isLoading} disabled={!inpaintPrompt} variant="secondary" className="w-full">Apply as Global Edit</Button>
         </div>
     </div>
   );
@@ -191,7 +283,7 @@ const BackgroundPanel: React.FC<Pick<ControlPanelProps, 'onReplaceBg' | 'isLoadi
                 <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-slate-600"></span></div>
                 <div className="relative flex justify-center text-xs uppercase"><span className="bg-slate-800 px-2 text-slate-500">Or</span></div>
             </div>
-            <ImageUploader label="Upload Background" description="Use your own image as a background." imageSrc={bgImagePreview} onImageUpload={handleBgImage} onImageRemove={() => handleBgImage(null)}/>
+            <ImageUploader label="Upload Background" description="Use your own image as a background." imageSrc={bgImagePreview} onImageUpload={handleBgImage} onImageRemove={() => handleBgImage(null)} hidePrompt={true}/>
             <Button onClick={() => onReplaceBg(undefined, bgImage)} isLoading={isLoading} disabled={!bgImage} className="w-full">Use Image as Background</Button>
         </div>
     </>
@@ -384,7 +476,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = (props) => {
     }
 
   return (
-    <aside className="w-96 bg-slate-800 border-l border-slate-700 p-4 flex flex-col">
+    <aside className="w-[500px] bg-slate-800 border-l border-slate-700 p-4 flex flex-col">
         <h2 className="text-xl font-bold mb-4 text-slate-200">{TOOL_NAMES[activeTool]}</h2>
         <div className="flex-grow overflow-hidden">
             {renderPanel()}
