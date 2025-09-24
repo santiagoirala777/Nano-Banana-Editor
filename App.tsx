@@ -43,7 +43,8 @@ const App: React.FC = () => {
 
 
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    // FIX: Replaced NodeJS.Timeout with a browser-compatible type to resolve 'Cannot find namespace NodeJS' error.
+    let interval: ReturnType<typeof setTimeout>;
     if (isLoading) {
       interval = setInterval(() => {
         setLoadingMessage(LOADING_MESSAGES[Math.floor(Math.random() * LOADING_MESSAGES.length)]);

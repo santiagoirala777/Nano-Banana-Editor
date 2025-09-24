@@ -1,5 +1,4 @@
-
-import { GoogleGenAI, GenerateContentResponse, Modality } from "@google/genai";
+import { GoogleGenAI, GenerateContentResponse, Modality, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import { ReferenceImages, EditParams, OutpaintDirection, OutpaintAspectRatio, ReferenceSection } from '../types';
 
 if (!process.env.API_KEY) {
@@ -7,6 +6,30 @@ if (!process.env.API_KEY) {
 }
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+const safetySettings = [
+    {
+        category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+        threshold: HarmBlockThreshold.BLOCK_NONE,
+    },
+    {
+        category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+        threshold: HarmBlockThreshold.BLOCK_NONE,
+    },
+    {
+        category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+        threshold: HarmBlockThreshold.BLOCK_NONE,
+    },
+    {
+        category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+        threshold: HarmBlockThreshold.BLOCK_NONE,
+    },
+    // Expanded safety settings to be more permissive and address IMAGE_SAFETY errors.
+    {
+        category: HarmCategory.HARM_CATEGORY_SEXUAL,
+        threshold: HarmBlockThreshold.BLOCK_NONE,
+    },
+];
 
 const base64ToInlineData = (base64: string) => {
     const [header, data] = base64.split(',');
@@ -100,6 +123,7 @@ export const generateImageFromReferences = async (references: ReferenceImages, p
             responseModalities: [Modality.IMAGE, Modality.TEXT],
             ...(seed && { seed: seed })
         },
+        safetySettings,
     });
 
     return handleApiResponse(response);
@@ -167,6 +191,7 @@ You are an expert digital artist. Your task is to modify the 'Base Image'. You w
         model: 'gemini-2.5-flash-image-preview',
         contents: { parts },
         config: { responseModalities: [Modality.IMAGE, Modality.TEXT] },
+        safetySettings,
     });
     
     return handleApiResponse(response);
@@ -198,6 +223,7 @@ export const enhanceImage = (baseImage: string, type: 'x2' | 'x4' | 'general'): 
         model: 'gemini-2.5-flash-image-preview',
         contents: { parts },
         config: { responseModalities: [Modality.IMAGE, Modality.TEXT] },
+        safetySettings,
     }).then(handleApiResponse);
 };
 
@@ -224,6 +250,7 @@ export const replaceBackground = async (baseImage: string, backgroundPrompt?: st
         model: 'gemini-2.5-flash-image-preview',
         contents: { parts },
         config: { responseModalities: [Modality.IMAGE, Modality.TEXT] },
+        safetySettings,
     });
 
     return handleApiResponse(response);
@@ -258,6 +285,7 @@ export const outpaintImage = async (
         model: 'gemini-2.5-flash-image-preview',
         contents: { parts },
         config: { responseModalities: [Modality.IMAGE, Modality.TEXT] },
+        safetySettings,
     });
 
     return handleApiResponse(response);
