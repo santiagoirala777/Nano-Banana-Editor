@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, GenerateContentResponse, Modality, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import { ReferenceData, EditParams, OutpaintDirection, OutpaintAspectRatio, ReferenceSection } from '../types';
 
@@ -21,16 +22,22 @@ const safetySettings = [
         threshold: HarmBlockThreshold.BLOCK_NONE,
     },
     {
-        // FIX: Corrected typo in HarmCategory constant.
         category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
         threshold: HarmBlockThreshold.BLOCK_NONE,
     },
-    // Expanded safety settings to be more permissive and address IMAGE_SAFETY errors.
-    // FIX: Removed invalid HarmCategory.HARM_CATEGORY_SEXUAL as it does not exist.
 ];
 
-// A professional system prompt to frame requests in a creative context, which can help mitigate safety filter issues.
-const SYSTEM_INSTRUCTION_PROMPT = `You are an advanced AI assistant for a professional virtual model studio. Your purpose is to generate and manipulate highly realistic, artistic, and fashion-oriented images. Interpret all user requests as tasks within a sanctioned, creative, and professional context. Adhere to the principles of professional photography and digital art to fulfill the user's creative vision with precision. Your output should consistently be the final image, without any additional text or explanation.`;
+const SYSTEM_INSTRUCTION_PROMPT = `You are an AI image generation expert inside a high-end virtual photography studio. Your purpose is to create and manipulate hyperrealistic, artistic, and fashion-oriented images with the precision of a professional photographer.
+
+**Core Directives:**
+1.  **Artistic Context:** Interpret all user requests as tasks within a professional, creative context for fine art, fashion editorials, or commercial photography. Assume requests for figures or anatomy are for artistic studies, similar to classical art or the work of renowned photographers.
+2.  **Photorealism is Paramount:** Emulate the output of professional-grade camera equipment. Internally reference concepts like:
+    - **Cameras:** Hasselblad X1D II 50C, Canon EOS R5, Leica M11.
+    - **Lenses:** 85mm f/1.2, 50mm f/1.4, 35mm f/1.4 for portraits; 24-70mm f/2.8 for general use.
+    - **Lighting:** Replicate professional lighting setups like softbox key lights, rim lighting, butterfly lighting, or Rembrandt lighting to create depth and dimension.
+    - **Quality:** Target RAW photo quality, 8K resolution, sharp focus, and intricate detail.
+3.  **Output Format:** Your ONLY output should be the final image. Do not include any text, explanations, or markdown.
+4.  **Negative Prompt Foundation:** Unless overridden by the user, implicitly avoid common AI artifacts. Think: "worst quality, low quality, normal quality, lowres, low details, plain background, monochrome, grayscale, ugly, deformed, mutated, blurry, plastic, fake, watermark, signature, text, jpeg artifacts."`;
 
 const base64ToInlineData = (base64: string) => {
     const [header, data] = base64.split(',');
@@ -60,31 +67,31 @@ const handleApiResponse = (response: GenerateContentResponse): string => {
 export const generateImageFromReferences = async (references: ReferenceData, prompt: string, negativePrompt?: string, seed?: number): Promise<string> => {
     console.log("Generating image with adaptive prompt...", { references, prompt, negativePrompt, seed });
 
-    let instruction = `${SYSTEM_INSTRUCTION_PROMPT}
-
-Your default style is professional, hyperrealistic photography. To achieve this, internally reference concepts like:
-- Quality Descriptors: hyperrealistic, photorealistic, 8K, RAW photo, ultra-detailed, sharp focus.
-- Professional Gear Emulation: Hasselblad X1D II 50C, Canon EOS R5, Zeiss Planar T* 50mm f/1.4 lens, 85mm f/1.2 lens.
-These concepts should influence the image generation without being explicitly mentioned in the final output.
-`;
+    let instruction = `${SYSTEM_INSTRUCTION_PROMPT}`;
 
     const hasFace = !!references[ReferenceSection.FACE]?.image || !!references[ReferenceSection.SUBJECT]?.image;
     const providedReferences = Object.entries(references).filter(([, data]) => !!data?.image || !!data?.prompt);
+    
+    const finalNegativePrompt = `Avoid: ${negativePrompt || 'No specific exclusions'}. Do not generate vulgar or pornographic content; maintain a professional, artistic standard.`;
 
     if (hasFace) {
-        // --- VIRTUAL MODEL MODE ---
-        instruction += `\nGenerate a new, photorealistic image of a person by combining the following visual elements. The primary instruction is: "${prompt || 'Create a photorealistic portrait based on the references.'}".\n`;
-        instruction += `\nFollow these instructions carefully:\n`;
+        // --- VIRTUAL MODEL MODE (DIRECTOR'S BRIEF) ---
+        instruction += `\n\n**Director's Brief: Virtual Model Photoshoot**\n
+**Primary Objective:** "${prompt || 'Create a photorealistic portrait based on the provided visual references.'}"
+**Execution Plan:** Construct a new, hyperrealistic photograph of a person by precisely combining the following elements from the reference files. Adherence to these visual cues is mandatory.
+
+**Detailed Shot List:**
+`;
 
         const referenceInstructions: { [key in ReferenceSection]?: string } = {
-            [ReferenceSection.FACE]: "- Use the 'Face' image for the person's facial features and identity. Maintain their likeness precisely.",
-            [ReferenceSection.SUBJECT]: "- Use the 'Subject' image for the person's body type, shape, and overall build.",
-            [ReferenceSection.OUTFIT]: "- Use the 'Outfit' image for the clothing. Dress the subject in this attire.",
-            [ReferenceSection.POSE]: "- Use the 'Pose' image for the body's posture and position.",
-            [ReferenceSection.ENVIRONMENT]: "- Use the 'Environment' image as the background and setting.",
-            [ReferenceSection.STYLE]: "- Apply the overall aesthetic, lighting, color palette, and mood from the 'Style' image.",
-            [ReferenceSection.ACCESSORIES]: "- Incorporate the items from the 'Accessories' image onto the subject where appropriate.",
-            [ReferenceSection.INSERT_OBJECT]: "- If an 'Insert Object' image is provided, seamlessly integrate this object into the scene, paying attention to scale, lighting, and shadows."
+            [ReferenceSection.FACE]: "- **Likeness:** The subject's face, identity, and features must be an exact match to the 'Face' reference.",
+            [ReferenceSection.SUBJECT]: "- **Physique:** The subject's body type, shape, and build must match the 'Subject' reference.",
+            [ReferenceSection.OUTFIT]: "- **Wardrobe:** The subject must be dressed in the attire shown in the 'Outfit' reference.",
+            [ReferenceSection.POSE]: "- **Staging:** The subject's body posture, position, and silhouette must replicate the 'Pose' reference.",
+            [ReferenceSection.ENVIRONMENT]: "- **Location:** The background, scene, and setting must be taken from the 'Environment' reference.",
+            [ReferenceSection.STYLE]: "- **Aesthetics:** The final image's overall mood, lighting scheme, color grading, and photographic style must emulate the 'Style' reference.",
+            [ReferenceSection.ACCESSORIES]: "- **Details:** Incorporate items from the 'Accessories' reference onto the subject naturally (e.g., jewelry, glasses).",
+            [ReferenceSection.INSERT_OBJECT]: "- **Props:** Seamlessly integrate the object from the 'Insert Object' reference into the scene, ensuring correct scale, lighting, and shadows."
         };
 
         for (const [section, data] of providedReferences) {
@@ -92,33 +99,35 @@ These concepts should influence the image generation without being explicitly me
                 instruction += `${referenceInstructions[section as ReferenceSection]}\n`;
             }
              if (data?.prompt) {
-                instruction += `- For the ${section.toLowerCase()}, follow this specific instruction: "${data.prompt}".\n`;
+                instruction += `- **Special Instruction for ${section}:** "${data.prompt}".\n`;
             }
         }
-        instruction += "- Seamlessly blend all elements into a single, coherent, high-quality photograph.";
+        instruction += "\n**Final Composition:** Blend all specified elements into a single, coherent, and flawless photograph. The result must not look like a collage; it must be a unified, photorealistic image.";
 
     } else {
-        // --- CREATIVE MODE ---
-        instruction += `\nGenerate a photorealistic image based on the following primary instruction: "${prompt}".\n`;
+        // --- CREATIVE MODE (ARTIST'S BRIEF) ---
+        instruction += `\n\n**Artist's Brief: Creative Generation**\n
+**Primary Objective:** Generate a photorealistic image based on the core instruction: "${prompt}".
+This is the most important directive.
+`;
         if (providedReferences.length > 0) {
-            instruction += `Use the provided reference images (${providedReferences.map(([section]) => section).join(', ')}) and any associated text prompts as visual and contextual inspiration to guide the final result, but the primary instruction is paramount.\n`;
+            instruction += `\n**Inspirational Elements:** Use the provided reference images (${providedReferences.map(([section]) => section).join(', ')}) and any associated text prompts as visual and contextual inspiration to guide the final result. They are secondary to the primary objective.\n`;
              for (const [section, data] of providedReferences) {
                 if (data?.prompt) {
-                    instruction += `- For the ${section.toLowerCase()} aspect, consider this: "${data.prompt}".\n`;
+                    instruction += `- **Inspiration for ${section}:** "${data.prompt}".\n`;
                 }
             }
         }
     }
     
-    if (negativePrompt) {
-        instruction += `\n- Please avoid the following elements: "${negativePrompt}".`;
-    }
+    instruction += `\n${finalNegativePrompt}`;
+    
 
     const parts: any[] = [{ text: instruction }];
 
     for (const [section, data] of providedReferences) {
         if (data?.image) {
-            parts.push({ text: `${section as ReferenceSection}:` });
+            parts.push({ text: `Reference - ${section as ReferenceSection}:` });
             parts.push(base64ToInlineData(data.image));
         }
     }
@@ -127,7 +136,6 @@ These concepts should influence the image generation without being explicitly me
         throw new Error("A text prompt or at least one reference image is required.");
     }
 
-    // FIX: Moved `safetySettings` into the `config` object.
     const response: GenerateContentResponse = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image-preview',
         contents: { parts },
@@ -151,35 +159,25 @@ export const editImage = async (params: EditParams): Promise<string> => {
     let instruction = "";
 
     if (isGlobalEdit) {
-        instruction = `${SYSTEM_INSTRUCTION_PROMPT}
-
-As a world-class digital artist, your task is to apply a global transformation to the entire 'Base Image' based on the following instruction: "${inpaintPrompt}".`;
-        if (references && Object.keys(references).length > 0) {
-            instruction += `\nUse any provided reference images and prompts to guide the transformation.`;
-        }
-        instruction += `\nApply the changes across the whole image to create a seamless, high-quality new version.`;
+        instruction = `${SYSTEM_INSTRUCTION_PROMPT}\n\n**Task: Global Image Transformation**\nApply a stylistic overhaul to the entire 'Base Image' based on the instruction: "${inpaintPrompt}". Use any provided references to guide the aesthetic. The core subject and composition should remain, but the style, mood, and details should be globally transformed.`;
         parts.push({ text: instruction }, { text: "Base Image:" }, baseImagePart);
     } else {
         const maskImagePart = base64ToInlineData(maskImage);
-        instruction = `Task: Photorealistic Inpainting
+        instruction = `**Task: Photorealistic Inpainting**\n\n${SYSTEM_INSTRUCTION_PROMPT}\n\nAs a master retoucher, your task is to seamlessly modify the 'Base Image' within the masked area.
 
-${SYSTEM_INSTRUCTION_PROMPT}
+**Technical Mandates:**
+1.  **Dimension Integrity:** The output image dimensions MUST perfectly match the 'Base Image' dimensions. No cropping or resizing.
+2.  **Mask Adherence:**
+    - Black Areas (Protection): Pixels from the 'Base Image' corresponding to black areas on the 'Mask Image' must be preserved perfectly.
+    - White Areas (Editing Zone): This is the only area where changes are permitted.
+3.  **Seamless Integration:** The new content in the white area must perfectly match the surrounding, untouched area in terms of lighting, color temperature, film grain, texture, and focus. The result must be a single, flawless photograph.
 
-As an expert digital artist, your task is to modify the 'Base Image' based on the 'Mask Image' and the user's instructions.
-
-Technical Guidelines:
-1.  Output Dimensions: The output image must have the exact same dimensions (width and height) as the 'Base Image'. Do not crop, resize, or alter the aspect ratio.
-2.  Mask Interpretation:
-    - Black Areas: The black areas of the 'Mask Image' represent protected regions. The corresponding pixels from the 'Base Image' must be preserved perfectly.
-    - White Areas: The white area of the 'Mask Image' is the designated editing region.
-3.  Seamless Blending: The edits within the white area should be seamlessly integrated with the untouched black areas, resulting in a single, coherent photograph.
-
-Instructions for the Editing Region (White Area):
-- Primary Goal: ${inpaintPrompt}
+**Creative Instruction for the Editing Zone (White Area):**
+- **Primary Goal:** "${inpaintPrompt}"
 `;
         
         if (references && Object.keys(references).length > 0) {
-            instruction += `- Visual & Text References: Use the provided references to guide the changes:\n`;
+            instruction += `- **Visual & Text References:** Use these to guide the changes:\n`;
             for (const [section, data] of Object.entries(references)) {
                 if (data) {
                     const sectionLower = (section as ReferenceSection).toLowerCase();
@@ -197,13 +195,12 @@ Instructions for the Editing Region (White Area):
     if (references) {
         for (const [section, data] of Object.entries(references)) {
             if (data?.image) {
-                parts.push({ text: `${section as ReferenceSection} reference:` });
+                parts.push({ text: `Reference - ${section as ReferenceSection}:` });
                 parts.push(base64ToInlineData(data.image));
             }
         }
     }
 
-    // FIX: Moved `safetySettings` into the `config` object.
     const response: GenerateContentResponse = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image-preview',
         contents: { parts },
@@ -220,52 +217,36 @@ export const enhanceImage = (baseImage: string, type: 'x2' | 'x4' | 'general'): 
     let prompt = `${SYSTEM_INSTRUCTION_PROMPT}\n\n`;
     switch(type) {
         case 'x2':
-            prompt += `Task: 2x Image Upscaling.
-Your primary task is to upscale the provided image to double its original resolution.
-- The output image dimensions should be exactly twice the input image dimensions.
-- While upscaling, intelligently add fine, realistic details, textures, and sharpness.
-- Maintain the original composition, subject, and colors.`;
+            prompt += `Task: 2x AI Gigapixel Upscaling. Your task is to upscale the provided image to double its resolution. Intelligently add fine, realistic details and textures. The output must be exactly 2x the input dimensions.`;
             break;
         case 'x4':
-            prompt += `Task: 4x Image Upscaling.
-Your primary task is to upscale the provided image to four times its original resolution.
-- The output image dimensions should be exactly quadruple the input image dimensions.
-- Generate photorealistic high-frequency details, textures, and sharpness to create a crystal-clear result.
-- Do not alter the subject, composition, or colors.`;
+            prompt += `Task: 4x AI Gigapixel Upscaling. Your task is to upscale the provided image to quadruple its resolution. Generate photorealistic high-frequency details for a crystal-clear result. The output must be exactly 4x the input dimensions.`;
             break;
         case 'general':
         default:
-            prompt += `Task: Professional Image Enhancement & Retouching. Transform this image into a hyperrealistic masterpiece, similar to a high-end professional photograph.
+            prompt += `**Task: Professional Magazine-Quality Retouching & Enhancement**\nTransform this image into a hyperrealistic masterpiece fit for a high-fashion magazine cover.
 
-Key Areas of Improvement:
+**Retouching Checklist:**
+1.  **Intelligent Upscaling:** Increase resolution by at least 2x, generating plausible high-frequency details.
+2.  **Skin Retouching (Frequency Separation Method):**
+    - Goal: Create flawless but utterly realistic skin.
+    - Correct temporary imperfections (blemishes, redness) while preserving and enhancing natural skin texture (pores, fine lines).
+    - Apply subtle, professional "dodge and burn" techniques to enhance facial contours. Avoid an airbrushed, plastic look.
+3.  **Detail Sharpening:**
+    - Eyes: Increase sharpness, add or enhance pupil catchlights, and subtly increase iris vibrancy for a lifelike effect.
+    - Hair: Improve detail for distinct strands, adding realistic shine and depth.
+4.  **Cinematic Color & Light Grading:**
+    - Apply professional color grading (e.g., subtle teal-and-orange or a sophisticated film emulation).
+    - Optimize dynamic range: deep blacks and clean highlights without clipping.
+    - Enhance micro-contrast to make details pop.
+    - Add a very subtle layer of realistic film grain to unify the image.
 
-1.  Intelligent Upscaling:
-    - Increase the image resolution by at least 2x.
-    - Generate plausible, high-frequency details to support the new resolution.
-
-2.  Professional Skin Retouching:
-    - Goal: Create flawless but realistic skin.
-    - Technique: Correct temporary imperfections (e.g., minor blemishes, redness).
-    - Critical Detail: Preserve and enhance the natural skin texture, including pore structure and fine lines. Avoid an over-smoothed or artificial appearance.
-    - Add subtle, realistic highlights and shadows to enhance facial contours.
-
-3.  Detail Enhancement:
-    - Eyes: Increase sharpness, enhance catchlights in pupils, and subtly brighten irises for a lifelike effect.
-    - Hair: Improve detail so that strands are more distinct. Add realistic shine and depth.
-
-4.  Lighting and Color Grading:
-    - Apply professional color grading for a rich, cinematic feel.
-    - Optimize the dynamic range, ensuring deep blacks and clean highlights without clipping.
-    - Enhance micro-contrast to make details stand out.
-
-Constraint: The subject, their pose, and the overall composition must remain unchanged.`;
+**Constraint:** The subject's identity, pose, and the overall composition must remain unchanged.`;
             break;
     }
     
-    // FIX: Use the `baseImage` parameter instead of the undefined variable `base64`.
     const parts = [ base64ToInlineData(baseImage), { text: prompt } ];
     
-    // FIX: Moved `safetySettings` into the `config` object.
     return ai.models.generateContent({
         model: 'gemini-2.5-flash-image-preview',
         contents: { parts },
@@ -283,19 +264,21 @@ export const replaceBackground = async (baseImage: string, backgroundPrompt?: st
     }
     
     const parts: any[] = [ { text: "Base Image:" }, base64ToInlineData(baseImage) ];
-    let instruction = `${SYSTEM_INSTRUCTION_PROMPT}\n\nTask: Replace the background of the 'Base Image'. Please adjust the lighting, shadows, and color grading of the main subject to perfectly match the new background environment for a seamless, photorealistic composition.`
+    let instruction = `${SYSTEM_INSTRUCTION_PROMPT}\n\n**Task: Photorealistic Background Replacement**\nReplace the background of the 'Base Image'.
+    
+**Crucial Directive:** The main subject must be perfectly integrated into the new environment. You must meticulously adjust the subject's lighting, shadows, color temperature, and edge reflections to match the new background for a seamless, photorealistic composition.
+`
 
     if (backgroundImage) {
-        instruction += "\nUse the 'Background Image' as the new background."
+        instruction += "\n**Background Source:** Use the provided 'Background Image' as the new background."
         parts.push({ text: "Background Image:" });
         parts.push(base64ToInlineData(backgroundImage));
     } else {
-        instruction += `\nCreate a new background based on this description: "${backgroundPrompt}".`;
+        instruction += `\n**Background Source:** Generate a new background based on this description: "${backgroundPrompt}".`;
     }
 
     parts.unshift({ text: instruction });
 
-    // FIX: Moved `safetySettings` into the `config` object.
     const response: GenerateContentResponse = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image-preview',
         contents: { parts },
@@ -320,20 +303,26 @@ export const outpaintImage = async (
     if (aspectRatio === OutpaintAspectRatio.CUSTOM && customWidth && customHeight) {
         targetDimensionText = `a custom dimension of ${customWidth}x${customHeight} pixels`;
     } else if (aspectRatio === OutpaintAspectRatio.FREEFORM) {
-        targetDimensionText = 'a new dimension by expanding naturally without a fixed aspect ratio';
+        targetDimensionText = 'a new dimension by expanding naturally';
     } else {
         targetDimensionText = `a new aspect ratio of ${aspectRatio}`;
     }
 
-    let instruction = `${SYSTEM_INSTRUCTION_PROMPT}\n\nYou are an expert at outpainting. Expand the provided image to fit ${targetDimensionText}. The original image content must be perfectly preserved at its center. Fill the new areas (in the specified directions: ${directions.join(', ')}) with content that logically and stylistically continues the original image. The final image should be a seamless, single composition.`;
+    let instruction = `${SYSTEM_INSTRUCTION_PROMPT}\n\n**Task: Professional Outpainting**\nExpand the provided image to ${targetDimensionText}.
+
+**Core Rules:**
+1.  **Preserve Original:** The original image content must be perfectly preserved, untouched, at the center of the new canvas.
+2.  **Seamless Extension:** Fill the new areas (in directions: ${directions.join(', ')}) with content that logically and stylistically continues the original.
+3.  **Maintain Perspective:** Analyze the original image's perspective lines and vanishing points, and ensure the new content adheres to them perfectly.
+4.  **Coherent Composition:** The final image must be a single, seamless, and believable composition.
+`;
     
     if (prompt) {
-        instruction += ` Use this creative prompt for the new areas: "${prompt}".`;
+        instruction += `\n**Creative Guide for New Areas:** "${prompt}".`;
     }
     
     const parts = [ { text: instruction }, base64ToInlineData(baseImage) ];
 
-    // FIX: Moved `safetySettings` into the `config` object.
     const response: GenerateContentResponse = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image-preview',
         contents: { parts },

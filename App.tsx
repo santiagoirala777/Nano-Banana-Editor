@@ -44,7 +44,6 @@ const App: React.FC = () => {
 
 
   useEffect(() => {
-    // FIX: Replaced NodeJS.Timeout with a browser-compatible type to resolve 'Cannot find namespace NodeJS' error.
     let interval: ReturnType<typeof setTimeout>;
     if (isLoading) {
       interval = setInterval(() => {
@@ -343,12 +342,38 @@ const App: React.FC = () => {
   };
 
   const handleDeleteSelected = () => {
-    if (window.confirm(`Are you sure you want to delete ${selectedImageIds.length} image(s) from this session?`)) {
+    if (window.confirm(`Are you sure you want to delete ${selectedImageIds.length} image(s) from this session? This action cannot be undone.`)) {
+        // Filter the main image list
         const newImages = images.filter(img => !selectedImageIds.includes(img.id));
         setImages(newImages);
+
+        // Also filter the history list to maintain consistency
+        const newHistory = imageHistory.filter(img => !selectedImageIds.includes(img.id));
+        
+        let newActiveImage = activeImage;
+        let newHistoryPointer = -1;
+
+        // Check if the currently active image was deleted
         if (activeImage && selectedImageIds.includes(activeImage.id)) {
-            setActiveImage(newImages[0] || null);
+            // If history is now empty, clear the canvas
+            if (newHistory.length === 0) {
+                newActiveImage = null;
+            } else {
+                // Try to set the active image to the one before the first deleted item in the old history
+                const lastActiveIndex = historyPointer;
+                const newIndex = Math.min(lastActiveIndex, newHistory.length - 1);
+                newActiveImage = newHistory[newIndex] || newHistory[0];
+            }
         }
+        
+        // Find the new pointer position based on the new active image
+        if (newActiveImage) {
+            newHistoryPointer = newHistory.findIndex(img => img.id === newActiveImage!.id);
+        }
+
+        setImageHistory(newHistory);
+        setHistoryPointer(newHistoryPointer);
+        setActiveImage(newActiveImage);
         setSelectedImageIds([]);
     }
   }
