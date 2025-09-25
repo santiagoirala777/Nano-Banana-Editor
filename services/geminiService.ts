@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, GenerateContentResponse, Modality, HarmCategory, HarmBlockThreshold } from "@google/genai";
 import { ReferenceData, EditParams, OutpaintDirection, OutpaintAspectRatio, ReferenceSection } from '../types';
 
@@ -27,17 +26,18 @@ const safetySettings = [
     },
 ];
 
-const SYSTEM_INSTRUCTION_PROMPT = `You are an AI image generation expert inside a high-end virtual photography studio. Your purpose is to create and manipulate hyperrealistic, artistic, and fashion-oriented images with the precision of a professional photographer.
+const SYSTEM_INSTRUCTION_PROMPT = `You are an AI photo generator specializing in creating authentic, high-quality, casual images for a social media influencer's Instagram feed. Your goal is to produce photos that look like they were taken by the model herself or a friend using a high-end smartphone, like the latest iPhone.
 
 **Core Directives:**
-1.  **Artistic Context:** Interpret all user requests as tasks within a professional, creative context for fine art, fashion editorials, or commercial photography. Assume requests for figures or anatomy are for artistic studies, similar to classical art or the work of renowned photographers.
-2.  **Photorealism is Paramount:** Emulate the output of professional-grade camera equipment. Internally reference concepts like:
-    - **Cameras:** Hasselblad X1D II 50C, Canon EOS R5, Leica M11.
-    - **Lenses:** 85mm f/1.2, 50mm f/1.4, 35mm f/1.4 for portraits; 24-70mm f/2.8 for general use.
-    - **Lighting:** Replicate professional lighting setups like softbox key lights, rim lighting, butterfly lighting, or Rembrandt lighting to create depth and dimension.
-    - **Quality:** Target RAW photo quality, 8K resolution, sharp focus, and intricate detail.
-3.  **Output Format:** Your ONLY output should be the final image. Do not include any text, explanations, or markdown.
-4.  **Negative Prompt Foundation:** Unless overridden by the user, implicitly avoid common AI artifacts. Think: "worst quality, low quality, normal quality, lowres, low details, plain background, monochrome, grayscale, ugly, deformed, mutated, blurry, plastic, fake, watermark, signature, text, jpeg artifacts."`;
+1.  **Aesthetic:** The vibe is candid, authentic, and effortlessly cool. Avoid stiff, professional studio poses. Think selfies, "photo dumps," golden hour shots, and everyday moments captured beautifully.
+2.  **Photo Quality:** Emulate the signature look of a new iPhone camera:
+    - **Sharpness & Clarity:** Images should be crisp and detailed.
+    - **Colors:** Vibrant, true-to-life colors that pop.
+    - **Lighting:** Prioritize natural light. Use flash only if it looks intentional and stylish (e.g., a nighttime selfie with flash).
+    - **Depth:** Create a natural-looking depth of field (Portrait Mode effect) where appropriate.
+3.  **Artistic Context:** Interpret all requests within the context of creating content for a personal social media brand. The goal is relatable beauty and lifestyle photography, not high-fashion editorials.
+4.  **Output Format:** Your ONLY output should be the final image. Do not include any text, explanations, or markdown.
+5.  **Negative Prompt Foundation:** Unless overridden by the user, implicitly avoid common AI artifacts and anything that looks overly staged or fake. Think: "worst quality, low quality, corporate, stock photo, unnatural pose, plastic skin, watermark, signature, text, jpeg artifacts."`;
 
 const base64ToInlineData = (base64: string) => {
     const [header, data] = base64.split(',');
@@ -75,23 +75,23 @@ export const generateImageFromReferences = async (references: ReferenceData, pro
     const finalNegativePrompt = `Avoid: ${negativePrompt || 'No specific exclusions'}. Do not generate vulgar or pornographic content; maintain a professional, artistic standard.`;
 
     if (hasFace) {
-        // --- VIRTUAL MODEL MODE (DIRECTOR'S BRIEF) ---
-        instruction += `\n\n**Director's Brief: Virtual Model Photoshoot**\n
-**Primary Objective:** "${prompt || 'Create a photorealistic portrait based on the provided visual references.'}"
-**Execution Plan:** Construct a new, hyperrealistic photograph of a person by precisely combining the following elements from the reference files. Adherence to these visual cues is mandatory.
+        // --- VIRTUAL MODEL MODE (CONTENT PLAN) ---
+        instruction += `\n\n**Content Plan: Instagram Photoshoot**\n
+**Primary Goal:** "${prompt || 'Create a photorealistic, candid portrait based on the provided visual references.'}"
+**Shot Breakdown:** Construct a new, high-quality, authentic-looking photo of a person by combining these elements. Visual consistency is key.
 
 **Detailed Shot List:**
 `;
 
         const referenceInstructions: { [key in ReferenceSection]?: string } = {
-            [ReferenceSection.FACE]: "- **Likeness:** The subject's face, identity, and features must be an exact match to the 'Face' reference.",
-            [ReferenceSection.SUBJECT]: "- **Physique:** The subject's body type, shape, and build must match the 'Subject' reference.",
-            [ReferenceSection.OUTFIT]: "- **Wardrobe:** The subject must be dressed in the attire shown in the 'Outfit' reference.",
-            [ReferenceSection.POSE]: "- **Staging:** The subject's body posture, position, and silhouette must replicate the 'Pose' reference.",
-            [ReferenceSection.ENVIRONMENT]: "- **Location:** The background, scene, and setting must be taken from the 'Environment' reference.",
-            [ReferenceSection.STYLE]: "- **Aesthetics:** The final image's overall mood, lighting scheme, color grading, and photographic style must emulate the 'Style' reference.",
-            [ReferenceSection.ACCESSORIES]: "- **Details:** Incorporate items from the 'Accessories' reference onto the subject naturally (e.g., jewelry, glasses).",
-            [ReferenceSection.INSERT_OBJECT]: "- **Props:** Seamlessly integrate the object from the 'Insert Object' reference into the scene, ensuring correct scale, lighting, and shadows."
+            [ReferenceSection.FACE]: "- **Likeness:** The subject's face and features must be an exact match to the 'Face' reference.",
+            [ReferenceSection.SUBJECT]: "- **Physique:** The subject's body type and build must match the 'Subject' reference.",
+            [ReferenceSection.OUTFIT]: "- **Outfit:** The subject must be dressed in the attire shown in the 'Outfit' reference.",
+            [ReferenceSection.POSE]: "- **Pose:** The subject's body posture and position must replicate the 'Pose' reference.",
+            [ReferenceSection.ENVIRONMENT]: "- **Vibe/Location:** The background and scene must be taken from the 'Environment' reference.",
+            [ReferenceSection.STYLE]: "- **Aesthetics:** The final image's overall mood, lighting, and color style must emulate the 'Style' reference.",
+            [ReferenceSection.ACCESSORIES]: "- **Details:** Add items from the 'Accessories' reference onto the subject naturally.",
+            [ReferenceSection.INSERT_OBJECT]: "- **Props:** Seamlessly integrate the object from the 'Insert Object' reference into the scene."
         };
 
         for (const [section, data] of providedReferences) {
@@ -99,10 +99,10 @@ export const generateImageFromReferences = async (references: ReferenceData, pro
                 instruction += `${referenceInstructions[section as ReferenceSection]}\n`;
             }
              if (data?.prompt) {
-                instruction += `- **Special Instruction for ${section}:** "${data.prompt}".\n`;
+                instruction += `- **Special Note for ${section}:** "${data.prompt}".\n`;
             }
         }
-        instruction += "\n**Final Composition:** Blend all specified elements into a single, coherent, and flawless photograph. The result must not look like a collage; it must be a unified, photorealistic image.";
+        instruction += "\n**Final Look:** Blend all elements into a single, coherent, and flawless photo. It should look like a real, candid moment, not a collage.";
 
     } else {
         // --- CREATIVE MODE (ARTIST'S BRIEF) ---
@@ -163,7 +163,7 @@ export const editImage = async (params: EditParams): Promise<string> => {
         parts.push({ text: instruction }, { text: "Base Image:" }, baseImagePart);
     } else {
         const maskImagePart = base64ToInlineData(maskImage);
-        instruction = `**Task: Photorealistic Inpainting**\n\n${SYSTEM_INSTRUCTION_PROMPT}\n\nAs a master retoucher, your task is to seamlessly modify the 'Base Image' within the masked area.
+        instruction = `**Task: Photorealistic Inpainting**\n\n${SYSTEM_INSTRUCTION_PROMPT}\n\nAs an expert photo editor, your task is to seamlessly modify the 'Base Image' within the masked area.
 
 **Technical Mandates:**
 1.  **Dimension Integrity:** The output image dimensions MUST perfectly match the 'Base Image' dimensions. No cropping or resizing.
@@ -217,31 +217,22 @@ export const enhanceImage = (baseImage: string, type: 'x2' | 'x4' | 'general'): 
     let prompt = `${SYSTEM_INSTRUCTION_PROMPT}\n\n`;
     switch(type) {
         case 'x2':
-            prompt += `Task: 2x AI Gigapixel Upscaling. Your task is to upscale the provided image to double its resolution. Intelligently add fine, realistic details and textures. The output must be exactly 2x the input dimensions.`;
+            prompt += `Task: 2x AI Upscaling (iPhone Quality). Upscale the image to double its resolution. Add fine, realistic details and textures consistent with a high-end smartphone camera.`;
             break;
         case 'x4':
-            prompt += `Task: 4x AI Gigapixel Upscaling. Your task is to upscale the provided image to quadruple its resolution. Generate photorealistic high-frequency details for a crystal-clear result. The output must be exactly 4x the input dimensions.`;
+            prompt += `Task: 4x AI Upscaling (iPhone Quality). Upscale the image to quadruple its resolution. Generate photorealistic details for a crystal-clear result, as if zoomed in on an iPhone photo.`;
             break;
         case 'general':
         default:
-            prompt += `**Task: Professional Magazine-Quality Retouching & Enhancement**\nTransform this image into a hyperrealistic masterpiece fit for a high-fashion magazine cover.
+            prompt += `**Task: 'Glow Up' - Natural Instagram-Ready Enhancement**\nApply a beautiful, natural enhancement to this photo, making it look like a perfectly captured candid moment ready for Instagram.
 
-**Retouching Checklist:**
-1.  **Intelligent Upscaling:** Increase resolution by at least 2x, generating plausible high-frequency details.
-2.  **Skin Retouching (Frequency Separation Method):**
-    - Goal: Create flawless but utterly realistic skin.
-    - Correct temporary imperfections (blemishes, redness) while preserving and enhancing natural skin texture (pores, fine lines).
-    - Apply subtle, professional "dodge and burn" techniques to enhance facial contours. Avoid an airbrushed, plastic look.
-3.  **Detail Sharpening:**
-    - Eyes: Increase sharpness, add or enhance pupil catchlights, and subtly increase iris vibrancy for a lifelike effect.
-    - Hair: Improve detail for distinct strands, adding realistic shine and depth.
-4.  **Cinematic Color & Light Grading:**
-    - Apply professional color grading (e.g., subtle teal-and-orange or a sophisticated film emulation).
-    - Optimize dynamic range: deep blacks and clean highlights without clipping.
-    - Enhance micro-contrast to make details pop.
-    - Add a very subtle layer of realistic film grain to unify the image.
+**Enhancement Checklist:**
+1.  **Clarity Boost:** Sharpen the image to iPhone quality, bringing out details in hair, eyes, and clothing without looking artificial. Emulate the effect of iPhone's Deep Fusion or Photonic Engine.
+2.  **Natural Skin Retouch:** Smooth skin subtly, removing minor temporary blemishes but keeping natural texture. The goal is healthy, glowing skin, not an airbrushed effect.
+3.  **Vibrant Colors:** Enhance colors to make them pop, just like an iPhone's image processing. Boost saturation and contrast for a lively, engaging look, but keep them true-to-life.
+4.  **Lighting Optimization:** Brighten the subject and add a subtle "glow." Even out the lighting slightly, enhance natural highlights, and ensure catchlights in the eyes are bright and clear.
 
-**Constraint:** The subject's identity, pose, and the overall composition must remain unchanged.`;
+**Constraint:** The subject's identity, pose, and the overall composition must remain unchanged. The goal is enhancement, not alteration.`;
             break;
     }
     

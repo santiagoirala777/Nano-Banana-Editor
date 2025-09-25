@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Tool, GeneratedImage, ReferenceData, ReferenceSection, OutpaintDirection, OutpaintAspectRatio, GenerationType } from '../types';
 import { TOOL_NAMES, REFERENCE_SECTIONS, OUTPAINT_ASPECT_RATIO_OPTIONS, GALLERY_FILTERS } from '../constants';
@@ -79,8 +78,8 @@ const GeneratorPanel: React.FC<Pick<ControlPanelProps, 'referenceData' | 'onRefe
     return (
         <div className="flex flex-col h-full">
             <div className="flex-grow overflow-y-auto space-y-4 pr-2 custom-scrollbar">
-                <TextArea label="Main Prompt" value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={5} placeholder="e.g., A model on a beach at sunset, hyperrealistic..." />
-                <TextArea label="Negative Prompt" value={negativePrompt} onChange={(e) => setNegativePrompt(e.target.value)} rows={2} placeholder="e.g., extra limbs, poor quality, text" />
+                <TextArea label="Main Prompt" value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={5} placeholder="e.g., selfie on a sunny day, laughing with a friend, golden hour portrait..." />
+                <TextArea label="Negative Prompt" value={negativePrompt} onChange={(e) => setNegativePrompt(e.target.value)} rows={2} placeholder="e.g., blurry, oversaturated, extra limbs, weird hands" />
                 <SeedInput seed={seed} setSeed={setSeed} isLocked={isSeedLocked} setIsLocked={setIsSeedLocked} />
                 <p className="text-xs text-slate-500 -mt-2">Combine a text prompt with visual references for precise control.</p>
                 {REFERENCE_SECTIONS.map(({ id, label, description }) => (
@@ -200,7 +199,7 @@ const EditorPanel: React.FC<Pick<ControlPanelProps, 'onEdit' | 'isLoading' | 'br
 
         {/* --- SCROLLABLE AREA --- */}
         <div className="flex-grow pt-4 space-y-4 overflow-y-auto custom-scrollbar pr-2">
-            <TextArea label="Edit Prompt" value={inpaintPrompt} onChange={(e) => setInpaintPrompt(e.target.value)} rows={3} placeholder="e.g., change hair to blonde, add sunglasses, cinematic lighting" />
+            <TextArea label="Edit Prompt" value={inpaintPrompt} onChange={(e) => setInpaintPrompt(e.target.value)} rows={3} placeholder="e.g., make her smile, add freckles, change top to blue" />
             
             {/* FACE SWAP UI */}
             <div className="space-y-2 pt-4 border-t border-slate-700">
@@ -248,9 +247,9 @@ const EnhancerPanel: React.FC<Pick<ControlPanelProps, 'onEnhance' | 'isLoading' 
   <div className="flex flex-col h-full">
     <ActionHistory {...props} />
     <div className="flex-grow space-y-4">
-        <p className="text-sm text-slate-400 mb-4">Apply professional-grade enhancements, including upscaling, skin retouching, and cinematic color grading.</p>
+        <p className="text-sm text-slate-400 mb-4">Apply a natural, Instagram-ready "Glow Up" to your image. This enhances colors, clarity, and lighting for a vibrant, authentic look.</p>
         <Button onClick={() => props.onEnhance('general')} isLoading={props.isLoading} className="w-full">
-          ✨ General Enhancement
+          ✨ Apply Natural Glow Up
         </Button>
     </div>
   </div>
@@ -277,7 +276,7 @@ const BackgroundPanel: React.FC<Pick<ControlPanelProps, 'onReplaceBg' | 'isLoadi
         <ActionHistory {...props} />
         <p className="text-sm text-slate-400 mb-4">Replace the background by describing it or uploading an image. The AI will adjust lighting on the subject.</p>
         <div className="space-y-4">
-            <TextArea label="Custom Background Prompt" value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={3} placeholder="e.g., a futuristic neon-lit city street at night" />
+            <TextArea label="Custom Background Prompt" value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={3} placeholder="e.g., a cozy cafe, a beautiful beach, city street at night" />
             <Button onClick={() => onReplaceBg(prompt, undefined)} isLoading={isLoading} disabled={!prompt} className="w-full">Generate Background</Button>
             <div className="relative my-4">
                 <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-slate-600"></span></div>
@@ -313,7 +312,7 @@ const OutpaintPanel: React.FC<Pick<ControlPanelProps, 'onOutpaint' | 'isLoading'
         <div className="space-y-4">
             <ActionHistory {...props} />
             <p className="text-sm text-slate-400">Expand the canvas of your image. Describe what you want to see in the new areas.</p>
-            <TextArea label="Outpainting Prompt (Optional)" value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={4} placeholder="e.g., a sprawling mountain range, a busy city square..." />
+            <TextArea label="Outpainting Prompt (Optional)" value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={4} placeholder="e.g., show more of the beautiful sky, a wider view of the room..." />
             <Select label="Target Aspect Ratio" options={OUTPAINT_ASPECT_RATIO_OPTIONS} value={aspectRatio} onChange={e => setAspectRatio(e.target.value as OutpaintAspectRatio)} />
             
             {aspectRatio === OutpaintAspectRatio.CUSTOM && (

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { Tool, GeneratedImage, ReferenceData, ReferenceSection, OutpaintDirection, OutpaintAspectRatio, GenerationType } from './types';
 import Sidebar from './components/Sidebar';
@@ -42,6 +41,58 @@ const App: React.FC = () => {
   const [imageHistory, setImageHistory] = useState<GeneratedImage[]>([]);
   const [historyPointer, setHistoryPointer] = useState(-1);
 
+  const recentGalleryImages = imageHistory
+    .filter(image => image.type !== GenerationType.UPLOADED)
+    .slice(0, 5);
+    
+  // FIX: Moved function declarations before they are used in useEffect to resolve block-scoped variable error.
+  const handleSetActiveImage = useCallback((image: GeneratedImage) => {
+    const newHistory = imageHistory.slice(0, historyPointer + 1);
+    const updatedHistory = [...newHistory, image];
+    setImageHistory(updatedHistory);
+    setHistoryPointer(updatedHistory.length - 1);
+    setActiveImage(image);
+  }, [imageHistory, historyPointer]);
+
+  const handleSelectFromGallery = useCallback((image: GeneratedImage) => {
+    const indexInHistory = imageHistory.findIndex(histImg => histImg.id === image.id);
+    if (indexInHistory !== -1) {
+        setHistoryPointer(indexInHistory);
+        setActiveImage(imageHistory[indexInHistory]);
+    } else {
+        handleSetActiveImage(image);
+    }
+  }, [imageHistory, handleSetActiveImage]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') {
+        return;
+      }
+      if (!activeImage) return;
+
+      const currentIndex = recentGalleryImages.findIndex(img => img.id === activeImage.id);
+      if (currentIndex === -1) return; 
+
+      let newIndex = -1;
+      if (e.key === 'ArrowLeft') {
+        newIndex = currentIndex - 1;
+      } else if (e.key === 'ArrowRight') {
+        newIndex = currentIndex + 1;
+      }
+
+      if (newIndex >= 0 && newIndex < recentGalleryImages.length) {
+        e.preventDefault();
+        handleSelectFromGallery(recentGalleryImages[newIndex]);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [activeImage, imageHistory, handleSelectFromGallery]);
+
 
   useEffect(() => {
     let interval: ReturnType<typeof setTimeout>;
@@ -55,28 +106,6 @@ const App: React.FC = () => {
     };
   }, [isLoading]);
   
-  const handleSetActiveImage = useCallback((image: GeneratedImage) => {
-    // This function adds a *new* state to the history
-    const newHistory = imageHistory.slice(0, historyPointer + 1);
-    const updatedHistory = [...newHistory, image];
-    setImageHistory(updatedHistory);
-    setHistoryPointer(updatedHistory.length - 1);
-    setActiveImage(image);
-  }, [imageHistory, historyPointer]);
-
-  const handleSelectFromGallery = (image: GeneratedImage) => {
-    // This function finds an *existing* state in history and navigates to it
-    const indexInHistory = imageHistory.findIndex(histImg => histImg.id === image.id);
-    if (indexInHistory !== -1) {
-        setHistoryPointer(indexInHistory);
-        setActiveImage(imageHistory[indexInHistory]);
-    } else {
-        // Fallback: if not in history (e.g., loaded from session), treat as new
-        handleSetActiveImage(image);
-    }
-  };
-
-
   const addNewImage = useCallback((url: string, type: GenerationType, prompt?: string, generationSeed?: number, refs?: ReferenceData) => {
     const newImage: GeneratedImage = { 
         url, 
@@ -97,12 +126,11 @@ const App: React.FC = () => {
         const sectionData = { ...prev[section] };
         delete sectionData.image;
 
-        if (!sectionData.prompt) { // If no prompt either, remove whole section
+        if (!sectionData.prompt) { 
           const next = { ...prev };
           delete next[section];
           return next;
         }
-        // Otherwise, just update with image removed
         return { ...prev, [section]: sectionData as any };
       });
       return;
@@ -157,7 +185,7 @@ const App: React.FC = () => {
         const resultUrl = await apiFunc();
         addNewImage(resultUrl, type, promptText, generationSeed, refs);
         if (type === GenerationType.EDITED) {
-          setClearMaskTrigger(c => c + 1); // Clear mask after successful edit
+          setClearMaskTrigger(c => c + 1); 
         }
     } catch (error) {
         console.error("API call failed:", error);
@@ -184,7 +212,8 @@ const App: React.FC = () => {
   };
 
   const handleGenerate = useCallback(async (prompt: string, negativePrompt: string, numericSeed?: number) => {
-    const seedToUse = numericSeed ?? Math.floor(Math.random() * 1000000000);
+    const seedFromInput = isSeedLocked ? numericSeed : undefined;
+    const seedToUse = seedFromInput ?? Math.floor(Math.random() * 1000000000);
 
     setIsLoading(true);
     setLoadingMessage(LOADING_MESSAGES[0]);
@@ -206,7 +235,7 @@ const App: React.FC = () => {
     } finally {
         setIsLoading(false);
     }
-  }, [referenceData, addNewImage]);
+  }, [referenceData, addNewImage, isSeedLocked]);
 
   const handleEdit = useCallback(async (params: { inpaintPrompt: string, references?: ReferenceData, isGlobal: boolean }) => {
     if (!activeImage) return;
@@ -343,30 +372,24 @@ const App: React.FC = () => {
 
   const handleDeleteSelected = () => {
     if (window.confirm(`Are you sure you want to delete ${selectedImageIds.length} image(s) from this session? This action cannot be undone.`)) {
-        // Filter the main image list
         const newImages = images.filter(img => !selectedImageIds.includes(img.id));
         setImages(newImages);
 
-        // Also filter the history list to maintain consistency
         const newHistory = imageHistory.filter(img => !selectedImageIds.includes(img.id));
         
         let newActiveImage = activeImage;
         let newHistoryPointer = -1;
 
-        // Check if the currently active image was deleted
         if (activeImage && selectedImageIds.includes(activeImage.id)) {
-            // If history is now empty, clear the canvas
             if (newHistory.length === 0) {
                 newActiveImage = null;
             } else {
-                // Try to set the active image to the one before the first deleted item in the old history
                 const lastActiveIndex = historyPointer;
                 const newIndex = Math.min(lastActiveIndex, newHistory.length - 1);
                 newActiveImage = newHistory[newIndex] || newHistory[0];
             }
         }
         
-        // Find the new pointer position based on the new active image
         if (newActiveImage) {
             newHistoryPointer = newHistory.findIndex(img => img.id === newActiveImage!.id);
         }
@@ -397,7 +420,7 @@ const App: React.FC = () => {
             onMaskDirty={() => setIsMaskDrawn(true)}
             onMaskCleared={() => setIsMaskDrawn(false)}
           />
-          <Gallery images={imageHistory} activeImageId={activeImage?.id || null} onImageSelect={handleSelectFromGallery} />
+          <Gallery images={recentGalleryImages} activeImageId={activeImage?.id || null} onImageSelect={handleSelectFromGallery} />
         </div>
         <ControlPanel
             activeTool={activeTool}
@@ -419,17 +442,14 @@ const App: React.FC = () => {
             canMaskUndo={canMaskUndo}
             canMaskRedo={canMaskRedo}
             isMaskDrawn={isMaskDrawn}
-            // Global History
             onUndo={handleUndo}
             onRedo={handleRedo}
             canUndo={historyPointer > 0}
             canRedo={historyPointer < imageHistory.length - 1}
-            // Seed
             seed={seed}
             setSeed={setSeed}
             isSeedLocked={isSeedLocked}
-            setIsSeedLocked={setIsSeedLocked}
-            // Gallery props
+            setIsLocked={setIsSeedLocked}
             images={images}
             selectedImageIds={selectedImageIds}
             onSelectionToggle={handleSelectionToggle}
